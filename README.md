@@ -51,16 +51,14 @@ Darum habe ich mir Regeln gesetzt, die genau das abfangen sollen:
 
 Bekannte Baustellen, die ich selbst sehe:
 
-- **Große Dateien.** Im Backend sind Scraper und Analyzer inzwischen in
-  kleine Module mit je einer Aufgabe zerlegt (siehe Verzeichnis-Übersicht).
-  Keine Backend-Datei hat mehr als rund 400 Zeilen. Noch groß ist in der
-  Webapp `app/app-views.js` (rund 2.400 Zeilen). Die Webapp ist live, dort
-  baue ich nur in kleinen, einzeln getesteten Schritten um.
-- **Lange Kommentare.** Viele Kommentare erzählen die Geschichte eines
-  Bugfixes mit Datum. Das hilft beim Nachvollziehen, macht den Code aber
-  länger als nötig.
-- **Deutsch und Englisch gemischt.** Neuere Funktionen heißen deutsch
-  (`lies_profil`), ältere englisch (`extract_profile`).
+- **Lange Kommentare in der Webapp.** Viele Kommentare in `webapp/app/`
+  erzählen die Geschichte eines Bugfixes mit Datum. Das hilft beim
+  Nachvollziehen, gehört aber eigentlich in die Commit-Historie. Im Backend
+  ist das schon aufgeräumt.
+- **Abdeckung der Oberfläche.** Für die Browser-Skripte der Webapp gibt es
+  keine Prozentzahl, weil die Tests sie als ein Stück in einen simulierten
+  Browser laden. Abgesichert sind sie über rund 730 Tests und 27
+  Klick-Tests im echten Browser.
 
 Was fehlt: Bisher hat noch kein Mensch vom Fach den Code geprüft. Alle
 Prüfungen kamen von KI oder von mir. Kritik und Hinweise sind ausdrücklich

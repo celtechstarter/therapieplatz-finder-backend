@@ -63,13 +63,13 @@ def _pruefe_api_key():
     sys.exit(1)
 
 
-async def run_scraper():
+async def starte_scraper():
     print("\n=== SCHRITT 1: Scraper ===")
     import scraper
     await scraper.main()
 
 
-def run_analyzer():
+def starte_analyzer():
     print("\n=== SCHRITT 2: Analyzer ===")
     import analyzer
     analyzer.main()
@@ -95,12 +95,12 @@ def main(argv=None):
     if "--skip-scraper" in argv:
         print("Scraper übersprungen (--skip-scraper)")
     else:
-        asyncio.run(run_scraper())
+        asyncio.run(starte_scraper())
 
     if "--skip-analyzer" in argv:
         print("Analyzer übersprungen (--skip-analyzer)")
     else:
-        run_analyzer()
+        starte_analyzer()
 
     zeige_statistik()
 
