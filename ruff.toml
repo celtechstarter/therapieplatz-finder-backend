@@ -1,0 +1,11 @@
+# Linter fuer das Backend: python -m ruff check backend tests
+# Bewusst schlanke Auswahl: echte Fehler (F), Stil (E/W), Import-Reihenfolge (I),
+# typische Fallen (B) und veraltete Schreibweisen (UP).
+line-length = 120
+target-version = "py310"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+  "E501",   # lange Zeilen: deutsche Texte und Regex lassen sich schlecht umbrechen
+]

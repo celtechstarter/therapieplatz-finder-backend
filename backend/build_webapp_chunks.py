@@ -72,10 +72,9 @@ import hashlib
 import json
 import re
 from math import asin, cos, radians, sin, sqrt
-from pathlib import Path
 
 import pfade
-from dateihilfen import json_atomar_schreiben, json_sicher_laden
+from dateihilfen import json_sicher_laden
 from merge_hilfen import ist_praxis_website
 
 WEBAPP_API_DIR = pfade.PROJEKT_ROOT / "webapp" / "api"
@@ -324,7 +323,7 @@ def main():
         tabelle = json_sicher_laden(PLZ_TABELLE, {})
         vorhandene_ids = [d["id"] for d in aktualisierte if d.get("id") is not None]
         ids = naechste_ids(vorhandene_ids, len(neue_datensaetze))
-        for datensatz, neue_id in zip(neue_datensaetze, ids):
+        for datensatz, neue_id in zip(neue_datensaetze, ids, strict=True):
             datensatz["id"] = neue_id
             adresse = datensatz["adresse"]
             km = cache[adresse] if cache.get(adresse) is not None else km_aus_plz(adresse, tabelle)

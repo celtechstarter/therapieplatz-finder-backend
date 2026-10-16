@@ -4,7 +4,6 @@ verhindern soll (Audit-Befund H1)."""
 import json
 from pathlib import Path
 
-
 import dateihilfen
 
 

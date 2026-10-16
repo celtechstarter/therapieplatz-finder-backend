@@ -5,11 +5,8 @@ hier heisst entweder "Therapeut faelschlich ausgeschlossen" (verpasste
 Chance) oder "Therapeut faelschlich aufgenommen" (falsche Erwartung beim
 Nutzer, z.B. eine KJP-Praxis, die gar keine Erwachsenen behandelt)."""
 
-import pytest
-
-
 import filters
-
+import pytest
 
 # ---------- pruefe_profil: Regel 1 (Einzeltherapie Erwachsene) ----------
 
@@ -392,6 +389,7 @@ def test_verneinung_ganz_am_textanfang_wird_erkannt():
 
 def test_main_schreibt_die_ausgeschlossenen_mit_grund(tmp_path, monkeypatch):
     import json
+
     import pfade
     roh, log = tmp_path / "roh.json", tmp_path / "raus.json"
     roh.write_text(json.dumps([

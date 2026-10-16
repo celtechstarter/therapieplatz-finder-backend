@@ -69,6 +69,7 @@ def test_leere_liste_gibt_nullen():
 
 def test_main_schreibt_die_zahlen_in_die_ausgabedatei(tmp_path, monkeypatch):
     import json
+
     import stats_export
     quelle, ziel = tmp_path / "analysiert.json", tmp_path / "stats.json"
     quelle.write_text(json.dumps([{"gkv_art": "kassensitz", "email": "a@b.de"}, {}]), encoding="utf-8")

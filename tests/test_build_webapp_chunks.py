@@ -5,11 +5,15 @@ dort fuer den vollen Kontext/die Herleitung der einzelnen Felder).
 Kein Test geht ins Netz: die Entfernung kommt seit 4.10.2026 aus der lokalen
 PLZ-Tabelle (km_aus_plz), main() laeuft komplett in einem Temp-Ordner (siehe
 Abschnitt "main()" unten)."""
-import sys
 
+
+import base64
+import gzip
+import hashlib
+import json
 
 import build_webapp_chunks as b
-
+import pytest
 
 # ---------- extrahiere_anrede() / extrahiere_therapieform() ----------
 
@@ -348,12 +352,6 @@ def test_kartenlink_wird_nie_als_website_ausgeliefert_auch_nicht_aus_live_stand(
 # fortlaufende ids, Weggefallene fliegen raus, die Chunks lassen sich exakt
 # zurueck entpacken und die Pruefsummen passen.
 
-import base64
-import gzip
-import hashlib
-import json
-
-import pytest
 
 
 @pytest.fixture

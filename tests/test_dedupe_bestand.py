@@ -1,10 +1,10 @@
 """Tests fuer backend/dedupe_bestand.py (Aufraeumen der 88 Alt-Dubletten,
 siehe Modul-Docstring dort fuer den Hintergrund)."""
-import sys
 
+import json
+
+import dedupe_bestand
 import pytest
-
-
 from dedupe_bestand import entscheide, wende_an
 
 
@@ -153,9 +153,6 @@ def test_wende_an_ist_konsistent_zwischen_raw_und_analysiert():
 
 # ---------- Durchlauf 2: Dubletten nur in den Rohdaten (4.10.2026) ----------
 
-import json
-
-import dedupe_bestand
 
 
 def test_analysierter_eintrag_gewinnt_auch_gegen_reicheren_rohdaten_eintrag():

@@ -20,19 +20,22 @@ Dateien, Ausgaben und den API-Schlüssel.
 import os
 import random
 import sys
-import time
 from datetime import datetime, timezone
-
-from dotenv import load_dotenv
 
 import analyse_ki
 import email_vorlagen
 import filters
 import pfade
-from analyse_regeln import (analyse_ohne_ki, analyse_per_regel, inhalt_hash,
-                            ist_reine_privatpraxis, muss_analysiert_werden,
-                            zu_wenig_angaben)
+from analyse_regeln import (
+    analyse_ohne_ki,
+    analyse_per_regel,
+    inhalt_hash,
+    ist_reine_privatpraxis,
+    muss_analysiert_werden,
+    zu_wenig_angaben,
+)
 from dateihilfen import json_atomar_schreiben, json_sicher_laden
+from dotenv import load_dotenv
 
 load_dotenv()
 

@@ -9,11 +9,11 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-
-
 import umkreis_ausbau as ua
 
-JETZT = lambda: datetime(2026, 9, 30, 12, 0)
+
+def JETZT():
+    return datetime(2026, 9, 30, 12, 0)
 
 
 def _liste(slugs, treffer=None):

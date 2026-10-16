@@ -8,11 +8,9 @@ import json
 import sys
 import types
 
-import pytest
-
-
 import main
 import pfade
+import pytest
 
 
 @pytest.fixture

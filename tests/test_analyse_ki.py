@@ -6,10 +6,8 @@ und mitschreibt, was gefragt wurde. Es geht nichts ins Netz.
 import json
 from types import SimpleNamespace
 
-import pytest
-
-
 import analyse_ki
+import pytest
 
 
 class _Client:

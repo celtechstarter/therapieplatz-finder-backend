@@ -1,4 +1,4 @@
-# Backend-Tests (pytest) bei jedem Push und Pull Request.
+# Backend: Linter (ruff) und Tests (pytest) bei jedem Push und Pull Request.
 # Kein Test braucht echte API-Schluessel oder Internet: Claude-API, Firecrawl
 # und fremde Websites werden in den Tests durch Attrappen ersetzt.
 name: Backend-Tests
@@ -18,6 +18,8 @@ jobs:
           cache: pip
       - name: Abhaengigkeiten installieren
         run: pip install -r requirements.txt
+      - name: Linter (ruff, Regeln in ruff.toml)
+        run: pip install ruff==0.17.1 && ruff check backend tests
       # Fuer die wenigen Tests, die echtes HTML in einem echten (lokalen,
       # vom Netz abgeschnittenen) Chromium auslesen.
       - name: Chromium fuer Playwright

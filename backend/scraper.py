@@ -22,11 +22,10 @@ import sys
 from datetime import datetime
 from urllib.parse import quote
 
-from playwright.async_api import async_playwright
-
 import pfade
 from dateihilfen import json_atomar_schreiben, json_sicher_laden
 from merge_hilfen import ist_praxis_website
+from playwright.async_api import async_playwright
 
 BASE_URL = "https://www.therapie.de"
 # therapie.de sucht pro Ort im Umkreis von 10 km. Unna und Bönen gehören

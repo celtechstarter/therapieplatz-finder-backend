@@ -14,10 +14,9 @@ import asyncio
 import os
 import sys
 
-from dotenv import load_dotenv
-
 import pfade
 from dateihilfen import json_sicher_laden
+from dotenv import load_dotenv
 
 load_dotenv()
 

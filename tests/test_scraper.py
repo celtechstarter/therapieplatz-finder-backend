@@ -10,10 +10,8 @@ import asyncio
 import json
 
 import pytest
-
 import scraper
 from attrappen import FakePage, FakePlaywright
-
 
 # ---------- oeffne_seite: Sperren erkennen ----------
 

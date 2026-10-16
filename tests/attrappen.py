@@ -162,7 +162,7 @@ def fake_getaddrinfo(aufrufe):
             ip = host
         except ValueError:
             if host not in FAKE_DNS:
-                raise socket.gaierror("unbekannter Host")
+                raise socket.gaierror("unbekannter Host") from None
             ip = FAKE_DNS[host]
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))]
     return _aufloesen

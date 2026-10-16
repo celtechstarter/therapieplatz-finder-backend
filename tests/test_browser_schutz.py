@@ -5,9 +5,8 @@ DNS ist durch eine Attrappe ersetzt (fake_dns), es geht nichts ins Netz.
 import asyncio
 import socket
 
-import pytest
-
 import browser_schutz as schutz
+import pytest
 from attrappen import FakeRequest, FakeRoute
 
 

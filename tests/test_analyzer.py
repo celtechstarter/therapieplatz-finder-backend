@@ -8,11 +8,9 @@ Durchläufe mit echten Dateien in einem Testordner.
 import json
 import random
 
-import pytest
-
-
 import analyzer
 import pfade
+import pytest
 from analyse_regeln import inhalt_hash
 
 ZEIT = "2026-10-16T12:00:00+00:00"

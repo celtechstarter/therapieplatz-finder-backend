@@ -5,9 +5,8 @@ Browser und DNS sind Attrappen (siehe attrappen.py), es geht nichts ins Netz.
 import asyncio
 import json
 
-import pytest
-
 import email_suche as suche
+import pytest
 from attrappen import FakePage, FakePlaywright
 
 

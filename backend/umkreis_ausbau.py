@@ -54,9 +54,8 @@ import time
 from datetime import datetime
 from urllib.parse import quote
 
-import requests
-
 import pfade
+import requests
 from dateihilfen import json_atomar_schreiben, json_sicher_laden
 
 BASE_URL = "https://www.therapie.de"
@@ -363,7 +362,7 @@ async def bearbeite_ort(ort, status, ergebnisse, holen, leser, budget_rest,
                     print(f"  {ort}: 0 Treffer -- Suchbegriff pruefen (SUCHBEGRIFF in umkreis_ausbau.py)")
                     return
             links = profil_links_aus_html(html)
-            neue = [l for l in links if l not in gefunden]
+            neue = [link for link in links if link not in gefunden]
             if not neue:
                 break
             gefunden.extend(neue)

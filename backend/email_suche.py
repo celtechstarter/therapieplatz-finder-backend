@@ -15,13 +15,11 @@ import random
 import re
 from urllib.parse import unquote
 
-from playwright.async_api import async_playwright
-
 import pfade
-from browser_schutz import (ist_oeffentliche_http_url, nach_navigation_erlaubt,
-                            ssrf_schutz_einrichten)
+from browser_schutz import ist_oeffentliche_http_url, nach_navigation_erlaubt, ssrf_schutz_einrichten
 from dateihilfen import json_atomar_schreiben, json_sicher_laden
 from merge_hilfen import ist_praxis_website
+from playwright.async_api import async_playwright
 
 EMAIL_MUSTER = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 WEBSITE_MUSTER = re.compile(r'(https?://[^\s\)\]"\'<>]+|www\.[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}[^\s\)\]"\'<>]*)')

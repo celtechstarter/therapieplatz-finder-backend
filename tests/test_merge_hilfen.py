@@ -8,8 +8,6 @@ Therapeuten standen doppelt in den Daten (siehe Commit-Message fuer Details).
 """
 
 import pytest
-
-
 from merge_hilfen import (
     dedup_schluessel,
     normalisiere_adresse,

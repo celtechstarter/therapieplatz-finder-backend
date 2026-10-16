@@ -7,7 +7,6 @@ Seit 26.8.2026 enthalten die Vorlagen KEINE festen Marcel-Fakten mehr
 ohne diese Aenderung haette jede Person beim Senden eine Anfrage mit
 Marcels Namen und Diagnose verschickt statt ihrer eigenen (siehe
 Modul-Docstring fuer Details)."""
-import re
 
 
 import email_vorlagen

@@ -1,10 +1,8 @@
 """Tests für analyse_regeln.py: die festen, kostenlosen Bewertungsregeln."""
 
-import pytest
-
-
 import analyse_ki
 import analyse_regeln as regeln
+import pytest
 
 
 def _profil(**extra):

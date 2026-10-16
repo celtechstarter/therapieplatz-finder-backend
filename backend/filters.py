@@ -354,6 +354,7 @@ def main(argv=None):
     und gibt die Zahl der behaltenen Profile zurück.
     """
     import sys
+
     import pfade
     from dateihilfen import json_atomar_schreiben, json_sicher_laden
     argv = sys.argv[1:] if argv is None else argv

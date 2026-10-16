@@ -164,6 +164,7 @@ nach dem stundenlangen Scraping-Lauf scheitern.
 ```bash
 python -m pytest tests/ -q                     # Backend (pytest)
 python -m pytest tests/ --cov=backend         # mit Abdeckung (pip install pytest-cov)
+python -m ruff check backend tests             # Linter (pip install ruff), Regeln in ruff.toml
 cd webapp && npm test                           # Webapp (node --test)
 ```
 
