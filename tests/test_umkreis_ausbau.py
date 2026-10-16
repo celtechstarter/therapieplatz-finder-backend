@@ -282,6 +282,68 @@ def test_profil_leser_ohne_profilblock_liefert_none():
     assert asyncio.run(leser.lesen("u", "<html>Captcha</html>")) is None
 
 
+def test_profil_leser_schaltet_javascript_aus_und_blockt_alle_anfragen(monkeypatch):
+    """Das HTML kommt von einer fremden Seite. Beim Auslesen darf es weder
+    Skripte ausfuehren noch irgendetwas nachladen (Tracking, Bilder, Fremd-
+    Anfragen). Geprueft ohne echten Browser ueber eine Attrappe."""
+    import types
+    protokoll = {}
+
+    class _Route:
+        def __init__(self):
+            self.abgebrochen = False
+
+        async def abort(self):
+            self.abgebrochen = True
+
+    class _Kontext:
+        async def route(self, muster, handler):
+            protokoll["muster"] = muster
+            protokoll["handler"] = handler
+
+        async def new_page(self):
+            return "seite"
+
+    class _Browser:
+        async def new_context(self, **optionen):
+            protokoll["optionen"] = optionen
+            return _Kontext()
+
+        async def close(self):
+            protokoll["geschlossen"] = True
+
+    class _PW:
+        class chromium:
+            @staticmethod
+            async def launch(headless):
+                protokoll["headless"] = headless
+                return _Browser()
+
+        async def start(self):
+            return self
+
+        async def stop(self):
+            protokoll["gestoppt"] = True
+
+    fake = types.ModuleType("playwright.async_api")
+    fake.async_playwright = lambda: _PW()
+    monkeypatch.setitem(sys.modules, "playwright.async_api", fake)
+
+    async def lauf():
+        async with ua.ProfilLeser():
+            pass
+        route = _Route()
+        await protokoll["handler"](route)
+        return route
+
+    route = asyncio.run(lauf())
+    assert protokoll["optionen"]["java_script_enabled"] is False
+    assert protokoll["headless"] is True
+    assert protokoll["muster"] == "**/*"
+    assert route.abgebrochen
+    assert protokoll["geschlossen"] and protokoll["gestoppt"]
+
+
 def test_profil_leser_nimmt_kartenlink_nicht_als_website():
     html = PROFIL_HTML.replace('<a href="mailto:', '<a href="https://www.google.com/maps/search/?api=1">Karte</a><a href="mailto:')
     async def lauf():

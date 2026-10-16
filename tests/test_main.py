@@ -1,317 +1,105 @@
-"""Tests fuer main.py: der lokale HTTP-Server, der die Web-Oberflaeche
-ausliefert und Sende-Anfragen entgegennimmt. Fokus: der Path-Traversal-Fix
-(K1), die Email-Validierung (M6), der CSRF-Schutz (_origin_ok), die
-Body-Groessenbegrenzung (_lies_body) und die Fehlerausgabe -- alles
-Regressionstests fuer echte, im Audit nachgewiesene Sicherheitsluecken."""
-import http.server
-import io
+"""Tests für main.py, den Startbefehl der Pipeline.
+
+Scraper und Analyzer werden durch kleine Attrappen ersetzt, die nur
+mitschreiben, dass sie aufgerufen wurden. So lässt sich prüfen, welcher
+Schalter welche Schritte auslöst, ohne Browser, Netz oder API-Schlüssel.
+"""
 import json
-import os
 import sys
+import types
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
-os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-fuer-pytest")
 
-import main
+import main  # noqa: E402
+import pfade  # noqa: E402
 
 
-def _handler(headers=None, body=b""):
-    """Baut eine AppRequestHandler-Instanz OHNE Netzwerk/Socket.
+@pytest.fixture
+def ablauf(monkeypatch):
+    protokoll = []
+    scraper = types.ModuleType("scraper")
 
-    object.__new__ umgeht __init__ (das sonst sofort einen Request von einem
-    echten Socket lesen wuerde); gesetzt wird nur, was die getesteten
-    Methoden tatsaechlich brauchen."""
-    h = object.__new__(main.AppRequestHandler)
-    h.headers = headers or {}
-    h.rfile = io.BytesIO(body)
-    h.antworten = []
-    h._json_response = lambda data, status=200: h.antworten.append((status, data))
-    return h
+    async def scraper_main():
+        protokoll.append("scraper")
 
+    async def enrich_emails():
+        protokoll.append("emails")
 
-# ---------- ist_erlaubter_pfad (Path Traversal, Audit-Befund K1) ----------
+    scraper.main, scraper.enrich_emails = scraper_main, enrich_emails
+    analyzer = types.ModuleType("analyzer")
+    analyzer.main = lambda: protokoll.append("analyzer")
+    monkeypatch.setitem(sys.modules, "scraper", scraper)
+    monkeypatch.setitem(sys.modules, "analyzer", analyzer)
+    monkeypatch.setattr(main, "zeige_statistik", lambda: protokoll.append("stats"))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
 
-def test_pfad_frontend_datei_erlaubt():
-    assert main.ist_erlaubter_pfad("/frontend/index.html") is True
+    def starte(*schalter):
+        main.main(list(schalter))
+        return protokoll
+    starte.protokoll = protokoll
+    return starte
 
 
-def test_pfad_ergebnis_dateien_erlaubt():
-    assert main.ist_erlaubter_pfad("/results_analyzed.json") is True
-    assert main.ist_erlaubter_pfad("/results_raw.json") is True
+def test_kompletter_lauf_scrapt_analysiert_und_zeigt_zahlen(ablauf):
+    assert ablauf() == ["scraper", "analyzer", "stats"]
 
 
-def test_pfad_traversal_mit_dotdot_wird_abgelehnt():
-    assert main.ist_erlaubter_pfad("/frontend/../.env") is False
+def test_nur_analyse(ablauf):
+    assert ablauf("--skip-scraper") == ["analyzer", "stats"]
 
 
-def test_pfad_traversal_url_kodiert_wird_abgelehnt():
-    """Das war die tatsaechliche Luecke (Befund K1): main.py prüfte die
-    Whitelist auf dem ROHEN Pfad, aber Python/der SimpleHTTPRequestHandler
-    dekodiert %2e%2e SPÄTER zu '..' -- die Prüfung wurde damit umgangen und
-    main.py servierte .env/credentials.json/token.json aus."""
-    assert main.ist_erlaubter_pfad("/frontend/%2e%2e/.env") is False
-    assert main.ist_erlaubter_pfad("/frontend/..%2f.env") is False
+def test_nur_scrapen_braucht_keinen_schluessel(ablauf, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    assert ablauf("--skip-analyzer") == ["scraper", "stats"]
 
 
-def test_pfad_direkter_zugriff_auf_env_wird_abgelehnt():
-    assert main.ist_erlaubter_pfad("/.env") is False
-    assert main.ist_erlaubter_pfad("/credentials.json") is False
-    assert main.ist_erlaubter_pfad("/token.json") is False
+def test_nur_emails(ablauf):
+    assert ablauf("--only-emails") == ["emails"]
 
 
-def test_pfad_mit_query_string_wird_korrekt_geprueft():
-    assert main.ist_erlaubter_pfad("/frontend/index.html?x=1") is True
-    assert main.ist_erlaubter_pfad("/frontend/%2e%2e/.env?x=1") is False
+def test_nur_statistik(ablauf):
+    assert ablauf("--stats") == ["stats"]
 
 
-# ---------- EMAIL_MUSTER (Header-Injection/Massen-Empfaenger, Befund M6) ----------
+@pytest.mark.parametrize("wert", [None, "", "platzhalter"])
+def test_ohne_schluessel_bricht_vor_dem_scraper_ab(ablauf, monkeypatch, wert):
+    """Der Scraper läuft stundenlang. Fehlt der Schlüssel, muss VORHER
+    abgebrochen werden, nicht erst danach im Analyzer."""
+    if wert is None:
+        monkeypatch.delenv("ANTHROPIC_API_KEY")
+    else:
+        monkeypatch.setenv("ANTHROPIC_API_KEY", wert)
+    with pytest.raises(SystemExit) as fehler:
+        ablauf()
+    assert fehler.value.code == 1
+    assert ablauf.protokoll == []   # weder Scraper noch Analyzer gestartet
 
-def test_email_muster_akzeptiert_gueltige_adresse():
-    assert main.EMAIL_MUSTER.fullmatch("praxis@example.de")
 
-
-def test_email_muster_lehnt_mehrfachempfaenger_ab():
-    """'a@b.de, opfer@x.de' ist eine legale Kopfzeile fuer Mehrfachversand
-    -- in main._handle_send wird zusaetzlich explizit auf ein Komma
-    geprueft (nicht nur das Regex-fullmatch), das hier dokumentiert wird."""
-    to = "a@b.de, opfer@x.de"
-    assert not main.EMAIL_MUSTER.fullmatch(to) or "," in to
-
-
-def test_email_muster_lehnt_header_injection_ab():
-    boesartig = "a@b.de\r\nBcc: opfer@x.de"
-    assert main.EMAIL_MUSTER.fullmatch(boesartig) is None
-
-
-def test_email_muster_lehnt_leer_und_muell_ab():
-    assert main.EMAIL_MUSTER.fullmatch("") is None
-    assert main.EMAIL_MUSTER.fullmatch("keine-email") is None
-
-
-# ---------- _load_sent_log / _save_sent_log (Roundtrip, Befund H1) ----------
-
-def test_sent_log_roundtrip(tmp_path, monkeypatch):
-    datei = tmp_path / "sent_log.json"
-    monkeypatch.setattr(main, "SENT_LOG_FILE", datei)
-    eintraege = [{"profil_url": "u1", "email": "a@b.de", "name": "Ärztin Müller"}]
-    main._save_sent_log(eintraege)
-    geladen = main._load_sent_log()
-    assert geladen == eintraege
-    assert "Ärztin" in datei.read_text(encoding="utf-8")  # ensure_ascii=False
-
-
-def test_sent_log_fehlende_datei_gibt_leere_liste(tmp_path, monkeypatch):
-    monkeypatch.setattr(main, "SENT_LOG_FILE", tmp_path / "gibt-es-nicht.json")
-    assert main._load_sent_log() == []
-
-
-# ---------- _origin_ok (CSRF/DNS-Rebinding, Audit-Befund T2) ----------
-#
-# Ohne diese Pruefung kann jede beliebige im Browser geoeffnete Webseite per
-# fetch() Emails ueber das angemeldete Gmail-Konto verschicken oder die
-# Therapeutendaten auslesen, solange der lokale Server laeuft.
-
-def test_origin_ok_erlaubt_eigenes_frontend():
-    h = _handler({"Host": f"localhost:{main.PORT}", "Origin": f"http://localhost:{main.PORT}"})
-    assert h._origin_ok() is True
-    h = _handler({"Host": f"127.0.0.1:{main.PORT}", "Origin": f"http://127.0.0.1:{main.PORT}"})
-    assert h._origin_ok() is True
-
-
-def test_origin_ok_lehnt_fremden_origin_ab():
-    h = _handler({"Host": f"localhost:{main.PORT}", "Origin": "https://evil.example"})
-    assert h._origin_ok() is False
-
-
-def test_origin_ok_erlaubt_fehlenden_origin():
-    """Kein Origin-Header heisst: kein Cross-Site-fetch aus einem Browser
-    (z.B. curl oder ein Aufruf der App selbst). Browser setzen den Header
-    bei fetch()/XHR immer, deshalb ist das kein Umgehungsweg."""
-    h = _handler({"Host": f"localhost:{main.PORT}"})
-    assert h._origin_ok() is True
-
-
-def test_origin_ok_lehnt_fremden_host_header_ab():
-    """DNS-Rebinding: ein Angreifer laesst seine Domain auf 127.0.0.1
-    zeigen. Der Browser schickt dann Host: angreifer.example mit -- der
-    Request kommt zwar am lokalen Server an, gehoert aber nicht dazu."""
-    h = _handler({"Host": "angreifer.example", "Origin": f"http://localhost:{main.PORT}"})
-    assert h._origin_ok() is False
-    h = _handler({"Host": "angreifer.example"})
-    assert h._origin_ok() is False
-
-
-# ---------- _lies_body (Groessenbegrenzung, Audit-Befund T2) ----------
-
-def test_lies_body_akzeptiert_gueltigen_json_body():
-    daten = b'{"profil_url": "u1"}'
-    h = _handler({"Content-Length": str(len(daten))}, body=daten)
-    assert h._lies_body() == {"profil_url": "u1"}
-
-
-def test_lies_body_lehnt_leeren_body_ab():
-    h = _handler({"Content-Length": "0"})
-    with pytest.raises(ValueError):
-        h._lies_body()
-
-
-def test_lies_body_lehnt_negative_content_length_ab():
-    h = _handler({"Content-Length": "-1"})
-    with pytest.raises(ValueError):
-        h._lies_body()
-
-
-def test_lies_body_lehnt_zu_grossen_body_ab():
-    """Ohne Obergrenze blockiert ein vorgetaeuschter Riesen-Body den
-    single-threaded Server, bis der Client fertig sendet (oder nie)."""
-    h = _handler({"Content-Length": str(main.MAX_BODY_BYTES + 1)})
-    with pytest.raises(ValueError):
-        h._lies_body()
-
-
-def test_lies_body_lehnt_nicht_numerische_content_length_ab():
-    h = _handler({"Content-Length": "abc"})
-    with pytest.raises(ValueError):
-        h._lies_body()
-
-
-def test_lies_body_wirft_bei_kaputtem_json_nur_valueerror():
-    """Wichtig fuer die Fehlerausgabe: alle Fehler aus _lies_body sind
-    ValueError mit selbst formuliertem Text, damit _fehler_antwort sie
-    gefahrlos an den Client zurueckgeben kann."""
-    daten = b'{kaputt'
-    h = _handler({"Content-Length": str(len(daten))}, body=daten)
-    with pytest.raises(ValueError) as info:
-        h._lies_body()
-    assert "JSON" in str(info.value)
-
-
-# ---------- _fehler_antwort (Audit-Befund S5) ----------
-
-def test_fehler_antwort_verraet_keine_exception_details():
-    """Vorher ging str(e) jeder Exception an den Client -- inklusive
-    absoluter Dateipfade und Gmail-API-Antworten."""
-    h = _handler()
-    h._fehler_antwort(RuntimeError("/home/marcel/geheim/token.json ist kaputt"))
-    status, daten = h.antworten[0]
-    assert status == 500
-    assert daten["ok"] is False
-    assert daten["error"] == main.GENERISCHER_FEHLER
-    assert "token.json" not in daten["error"]
-    assert "/home/marcel" not in daten["error"]
-
-
-def test_fehler_antwort_gibt_eigene_validierungsmeldung_weiter():
-    """Eigene ValueError-Texte sind selbst formuliert und helfen beim
-    Bedienen -- die duerfen (mit Status 400) sichtbar bleiben."""
-    h = _handler()
-    h._fehler_antwort(ValueError("Ungültige Empfänger-Email"))
-    status, daten = h.antworten[0]
-    assert status == 400
-    assert daten["error"] == "Ungültige Empfänger-Email"
-
-
-# ---------- Socket-Timeout (Audit-Befund S6) ----------
-
-def test_handler_hat_request_timeout():
-    assert main.REQUEST_TIMEOUT > 0
-    assert main.AppRequestHandler.timeout == main.REQUEST_TIMEOUT
-
-
-def test_setup_setzt_socket_timeout(monkeypatch):
-    """Ohne settimeout kann ein Client, der die Verbindung oeffnet und dann
-    schweigt, den single-threaded Server dauerhaft einfrieren."""
-    gesetzt = []
-
-    class FakeConnection:
-        def settimeout(self, wert):
-            gesetzt.append(wert)
-
-    def fake_setup(self):
-        self.connection = FakeConnection()
-
-    monkeypatch.setattr(http.server.SimpleHTTPRequestHandler, "setup", fake_setup)
-    h = object.__new__(main.AppRequestHandler)
-    h.setup()
-    assert gesetzt == [main.REQUEST_TIMEOUT]
-
-
-# ---------- _load_excluded / _handle_restore (Audit-Befund B5) ----------
-
-def test_load_excluded_ignoriert_strukturell_falsches_json(tmp_path, monkeypatch):
-    """excluded.json wird von Hand bearbeitbar in data/ gehalten. Eine Liste
-    von Strings statt von Objekten liess frueher jeden e["profil_url"] mit
-    TypeError auflaufen und den Endpunkt auf 500 gehen."""
-    datei = tmp_path / "excluded.json"
-    datei.write_text(json.dumps(["nur-ein-string", {"profil_url": "u1"}, None, 42]),
-                     encoding="utf-8")
-    monkeypatch.setattr(main, "EXCLUDED_FILE", datei)
-    assert main._load_excluded() == [{"profil_url": "u1"}]
-
-
-def test_load_excluded_bei_objekt_statt_liste(tmp_path, monkeypatch):
-    datei = tmp_path / "excluded.json"
-    datei.write_text('{"profil_url": "u1"}', encoding="utf-8")
-    monkeypatch.setattr(main, "EXCLUDED_FILE", datei)
-    assert main._load_excluded() == []
-
-
-def test_restore_uebersteht_eintrag_ohne_profil_url(tmp_path, monkeypatch):
-    """Regression zu B5: e["profil_url"] warf KeyError, sobald ein Eintrag
-    das Feld nicht hatte -- Wiederherstellen war dann komplett kaputt."""
-    datei = tmp_path / "excluded.json"
-    datei.write_text(json.dumps([{"name": "ohne url"}, {"profil_url": "u1"}]),
-                     encoding="utf-8")
-    monkeypatch.setattr(main, "EXCLUDED_FILE", datei)
-    koerper = json.dumps({"profil_url": "u1"}).encode()
-    h = _handler({"Content-Length": str(len(koerper))}, body=koerper)
-    h._handle_restore()
-    assert h.antworten == [(200, {"ok": True})]
-    assert json.loads(datei.read_text(encoding="utf-8")) == [{"name": "ohne url"}]
-
-
-def test_exclude_uebersteht_eintrag_ohne_profil_url(tmp_path, monkeypatch):
-    datei = tmp_path / "excluded.json"
-    datei.write_text(json.dumps([{"name": "ohne url"}]), encoding="utf-8")
-    monkeypatch.setattr(main, "EXCLUDED_FILE", datei)
-    koerper = json.dumps({"profil_url": "u2", "name": "Neu"}).encode()
-    h = _handler({"Content-Length": str(len(koerper))}, body=koerper)
-    h._handle_exclude()
-    assert h.antworten == [(200, {"ok": True})]
-    gespeichert = json.loads(datei.read_text(encoding="utf-8"))
-    assert [e.get("profil_url") for e in gespeichert] == [None, "u2"]
-
-
-def test_exclude_ohne_profil_url_meldet_fehler_mit_status_400(tmp_path, monkeypatch):
-    monkeypatch.setattr(main, "EXCLUDED_FILE", tmp_path / "excluded.json")
-    koerper = json.dumps({"name": "ohne url"}).encode()
-    h = _handler({"Content-Length": str(len(koerper))}, body=koerper)
-    h._handle_exclude()
-    status, daten = h.antworten[0]
-    assert status == 400
-    assert daten["ok"] is False
-
-
-# ---------- _pruefe_api_key (Audit-Befund B4) ----------
-
-def test_pruefe_api_key_bricht_ohne_key_ab(monkeypatch):
-    """Der Check muss VOR dem Scraper laufen: sonst laeuft der stundenlange
-    Scrape durch und erst analyzer.main() beendet den Prozess mit exit(1)."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    with pytest.raises(SystemExit) as info:
-        main._pruefe_api_key()
-    assert info.value.code == 1
-
-
-def test_pruefe_api_key_bricht_bei_platzhalter_ab(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "platzhalter")
-    with pytest.raises(SystemExit):
-        main._pruefe_api_key()
-
-
-def test_pruefe_api_key_laesst_echten_key_durch(monkeypatch):
+def test_api_key_vorhanden(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-echt")
-    main._pruefe_api_key()  # darf nicht werfen
+    assert main.api_key_vorhanden() is True
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "platzhalter")
+    assert main.api_key_vorhanden() is False
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    assert main.api_key_vorhanden() is False
+
+
+def test_zahlen_zum_datenstand(tmp_path, monkeypatch):
+    roh = tmp_path / "raw.json"
+    analysiert = tmp_path / "analysiert.json"
+    roh.write_text(json.dumps([{}, {}, {}]), encoding="utf-8")
+    analysiert.write_text(json.dumps([{"email": "a@x.de"}, {"email": ""}]), encoding="utf-8")
+    monkeypatch.setattr(pfade, "RESULTS_RAW", roh)
+    monkeypatch.setattr(pfade, "RESULTS_ANALYZED", analysiert)
+    assert main.zahlen_zum_datenstand() == {
+        "gescrapt": 3, "in_der_app": 2, "mit_email": 1, "ohne_email": 1}
+
+
+def test_zahlen_bei_fehlenden_dateien_sind_null(tmp_path, monkeypatch):
+    monkeypatch.setattr(pfade, "RESULTS_RAW", tmp_path / "fehlt.json")
+    monkeypatch.setattr(pfade, "RESULTS_ANALYZED", tmp_path / "fehlt-auch.json")
+    assert main.zahlen_zum_datenstand() == {
+        "gescrapt": 0, "in_der_app": 0, "mit_email": 0, "ohne_email": 0}

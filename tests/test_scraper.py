@@ -223,12 +223,33 @@ def test_ssrf_schutz_lehnt_nicht_http_schema_ab():
     assert scraper._ist_oeffentliche_http_url("javascript:alert(1)") is False
 
 
-def test_ssrf_schutz_lehnt_unaufloesbaren_host_ab():
-    assert scraper._ist_oeffentliche_http_url("http://dieser-host-existiert-ganz-sicher-nicht.invalid/") is False
+def test_ssrf_schutz_lehnt_unaufloesbaren_host_ab(fake_dns):
+    assert scraper._ist_oeffentliche_http_url("http://gibt-es-nicht.invalid/") is False
 
 
-def test_ssrf_schutz_erlaubt_bekannte_oeffentliche_domain():
-    assert scraper._ist_oeffentliche_http_url("https://www.google.com") is True
+def test_ssrf_schutz_erlaubt_oeffentliche_domain(fake_dns):
+    assert scraper._ist_oeffentliche_http_url("https://praxis-beispiel.de/") is True
+
+
+# Jede Schutzregel wird einzeln getestet: Der Name loest im Test bewusst auf
+# eine OEFFENTLICHE Adresse auf, damit nur die jeweilige Regel greifen kann.
+# Sonst wuerde die IP-Pruefung jede Luecke in der Namens-/Schema-Pruefung
+# verdecken (der Mutationstest hat genau das gezeigt).
+
+@pytest.mark.parametrize("url", [
+    "http://localhost/",              # Name "localhost" immer verboten
+    "http://drucker.local/",          # mDNS-Namen im Heimnetz
+    "ftp://praxis-beispiel.de/",      # nur http(s)
+    "http:///nur-ein-pfad",           # kein Hostname
+])
+def test_ssrf_schutz_jede_regel_greift_auch_bei_oeffentlicher_ip(monkeypatch, url):
+    monkeypatch.setattr(socket, "getaddrinfo",
+                        lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))])
+    assert scraper._ist_oeffentliche_http_url(url) is False
+
+
+def test_ssrf_schutz_kaputte_url_wird_abgelehnt_statt_abzustuerzen():
+    assert scraper._ist_oeffentliche_http_url("http://[::1") is False
 
 
 # ---------- SSRF-Schutz NACH der Navigation (Audit-Befund S4) ----------
@@ -262,9 +283,9 @@ class _FakePage:
         return self.html
 
 
-def test_nach_navigation_erlaubt_oeffentliche_zieladresse():
+def test_nach_navigation_erlaubt_oeffentliche_zieladresse(fake_dns):
     page = _FakePage()
-    page.url = "https://www.google.com/"
+    page.url = "https://praxis-beispiel.de/"
     assert scraper._nach_navigation_erlaubt(page) is True
 
 
@@ -274,22 +295,22 @@ def test_nach_navigation_blockt_weiterleitung_auf_localhost():
     assert scraper._nach_navigation_erlaubt(page) is False
 
 
-def test_find_email_on_website_bricht_bei_redirect_auf_localhost_ab():
+def test_find_email_on_website_bricht_bei_redirect_auf_localhost_ab(fake_dns):
     """Die angefragte URL ist oeffentlich und besteht die Vorpruefung; erst
     die Weiterleitung fuehrt ins lokale Netz. Der Seiteninhalt darf danach
     gar nicht mehr gelesen werden."""
     page = _FakePage(
-        weiterleitungen={"https://www.google.com/": "http://127.0.0.1:8080/"},
+        weiterleitungen={"https://praxis-beispiel.de/": "http://127.0.0.1:8080/"},
         html="Kontakt: praxis@example-praxis.de",
     )
-    ergebnis = asyncio.run(scraper.find_email_on_website(page, "https://www.google.com/"))
+    ergebnis = asyncio.run(scraper.find_email_on_website(page, "https://praxis-beispiel.de/"))
     assert ergebnis is None
     assert page.inhalt_gelesen == 0
 
 
-def test_find_email_on_website_liest_seite_ohne_weiterleitung_normal():
+def test_find_email_on_website_liest_seite_ohne_weiterleitung_normal(fake_dns):
     page = _FakePage(html="Kontakt: praxis@example-praxis.de")
-    ergebnis = asyncio.run(scraper.find_email_on_website(page, "https://www.google.com/"))
+    ergebnis = asyncio.run(scraper.find_email_on_website(page, "https://praxis-beispiel.de/"))
     assert ergebnis == "praxis@example-praxis.de"
 
 

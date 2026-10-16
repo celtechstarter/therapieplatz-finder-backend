@@ -1,14 +1,14 @@
 # Therapie-Mailer Projekt
 
 ## Ziel
-Python-Tool das automatisch Psychotherapeuten von therapie.de scrapt, ihre Profile mit der Claude API analysiert und personalisierte Anfrage-Emails über Gmail versendet. Zweiter Teil: die deployte Web-App `webapp/` (siehe `README.md` für den vollständigen Aufbau).
+Python-Pipeline, die Psychotherapie-Praxen von therapie.de und weiteren Registern sammelt, nach festen Regeln filtert und mit der Claude API (oder kostenlos per Regeln) bewertet. Zweiter Teil: die deployte Web-App `webapp/` (siehe `README.md` für den vollständigen Aufbau).
 
 ## Arbeitsweise ab jetzt (gilt für alles, Backend wie Webapp)
 
 - **Struktur sauber halten**: neue Dateien an die bestehende Ordnerlogik anpassen (siehe `README.md`), keine losen Skripte/Daten im Root, keine Duplikate. Bevor etwas Neues entsteht: kurz prüfen, ob es nicht eigentlich in einen vorhandenen Ordner gehört.
 - **Tests direkt mitschreiben, nicht nachträglich**: jede neue Funktion/jedes neue Feature kriegt beim Bauen einen Test dazu (`pytest` für `backend/`, `node --test` für `webapp/`). Vor jedem Commit müssen beide Suiten grün sein — kein "mach ich später".
 - **Kleine, nachvollziehbare Commits** mit klaren deutschen Messages. Committen ist ok, **gepusht wird nur, wenn Marcel das ausdrücklich sagt** (webapp ist live, Auto-Deploy bei jedem Push).
-- **Secrets bleiben Secrets**: `.env`, `credentials.json`, `token.json` nie ins Git-Repo, immer über `.gitignore` geprüft. Bei neuen Secrets: `.env.example`/Doku aktualisieren, nie den echten Wert committen.
+- **Secrets bleiben Secrets**: `.env` nie ins Git-Repo, immer über `.gitignore` geprüft. Bei neuen Secrets: `.env.example`/Doku aktualisieren, nie den echten Wert committen.
 - **Sicherheitsrelevante Änderungen** (Auth, Formulare, Datenzugriff, alles was Nutzerdaten anfasst) bekommen vor dem Commit einen kurzen Threat-Check: Wer könnte das wie missbrauchen? Reicht die Eingabevalidierung? Bei größeren Änderungen den `security-review`-Skill nutzen.
 - **Dokumentation mitziehen**: README/CONTRIBUTING/Docstrings aktualisieren, wenn sich Struktur oder Verhalten ändert — nicht getrennt "irgendwann mal" nachpflegen.
 - **Lieber einmal mehr nachfragen/vorsichtig sein** als stillschweigend Testdaten, Auth-Logik oder die Datenchunk-Prüfsummen in `webapp/api/data.js` anfassen.
@@ -16,7 +16,7 @@ Python-Tool das automatisch Psychotherapeuten von therapie.de scrapt, ihre Profi
 ## Projektstruktur (siehe README.md für Details)
 ```
 therapie-mailer/
-├── backend/            <- Python-Pipeline (scraper, analyzer, mailer, main.py, pfade.py)
+├── backend/            <- Python-Pipeline (scraper, analyzer, main.py, pfade.py)
 ├── data/               <- Scraping-/Analyse-Ergebnisse (gitignored)
 ├── docs/               <- Anforderungen, Security-Audit, Anleitung
 ├── deliverables/       <- fertige Exporte (xlsx/pdf)
@@ -166,43 +166,18 @@ gibt es nicht mehr).
   mehr, siehe `ERLAUBTE_ANALYSE_FELDER`).
 - Speichert in `data/results_analyzed.json`
 
-## MAILER (backend/mailer.py)
-- Gmail API mit OAuth2
-- Nutzt `credentials.json` (Projekt-Root) für Authentifizierung
-- Beim ersten Start: öffnet Browser für Google Login, speichert `token.json`
-- Funktion: `send_email(to_email, subject, body)`
-- Subject immer: "Anfrage Therapieplatz"
-
-## FRONTEND (backend/frontend/index.html) – nur noch lokale Vorschau
-Reines HTML/CSS/JS ohne Frameworks, liest `results_analyzed.json` vom
-lokalen Python-Server. **Das eigentliche, live deployte Produkt ist
-`webapp/`** (siehe `webapp/README.md`) – dort auch die aktuelle
-Kartenlogik, Filter und Statusverwaltung. Dieser lokale Frontend-Ordner
-dient nur noch dem schnellen Ansehen frisch gescrapter Rohdaten vor dem
-Deploy, nicht mehr der Endnutzung.
-
 ## MAIN (backend/main.py)
-- Startet scraper.py
-- Dann analyzer.py
-- Dann lokalen HTTP Server auf Port 8080
-- Öffnet automatisch Browser mit frontend/index.html
+- Startbefehl: Scraper, danach Analyzer, danach Statistik.
+- Schalter: `--skip-scraper`, `--skip-analyzer`, `--only-emails`, `--stats`.
+- Der frühere lokale Server mit Vorschau (`backend/frontend/`) und der
+  Gmail-Versand (`mailer.py`, `credentials.json`, `token.json`) sind seit
+  16.10.2026 entfernt. Mails verschickt nur noch die Webapp (über Resend).
 
 ## REQUIREMENTS.TXT
-playwright
-
-anthropic
-
-google-auth-oauthlib
-
-google-auth-httplib2
-
-google-api-python-client
-
-requests
+Feste Versionen, siehe Kommentar in `requirements.txt`.
 
 ## Wichtige Hinweise
 - Fehlerbehandlung überall (Seiten die nicht laden, fehlende Felder etc.)
 - Rate limiting beim Scrapen: 4 bis 6,5 Sekunden zwischen Requests (`DELAY_MIN`/`DELAY_MAX` in scraper.py), bei 403/429/Captcha sofort Stopp
 - Fortschrittsanzeige im Terminal während des Scrapens
 - ANTHROPIC_API_KEY als Umgebungsvariable lesen
-- credentials.json liegt bereits im Projektordner

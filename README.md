@@ -62,8 +62,6 @@ Bekannte Baustellen, die ich selbst sehe:
   länger als nötig.
 - **Deutsch und Englisch gemischt.** Neuere Funktionen heißen deutsch
   (`lies_profil`), ältere englisch (`extract_profile`).
-- **`backend/frontend/`** ist nur noch eine lokale Vorschau aus der
-  Anfangszeit. Das eigentliche Produkt ist die Webapp.
 
 Was fehlt: Bisher hat noch kein Mensch vom Fach den Code geprüft. Alle
 Prüfungen kamen von KI oder von mir. Kritik und Hinweise sind ausdrücklich
@@ -79,8 +77,6 @@ therapie-mailer/
 ├── .github/workflows/        <- GitHub Actions: pytest bei jedem Push
 ├── .env                      <- ANTHROPIC_API_KEY (Secret, gitignored)
 ├── .env.example              <- Vorlage für .env (nur Platzhalter, im Repo)
-├── credentials.json          <- Gmail-OAuth-Client (Secret, gitignored)
-├── token.json                <- Gmail-Login-Token (Secret, gitignored)
 ├── requirements.txt           <- Python-Abhängigkeiten (feste Versionen)
 ├── conftest.py                <- pytest-Konfiguration (projektweit)
 │
@@ -90,11 +86,9 @@ therapie-mailer/
 │   ├── umkreis_ausbau.py       <- Hauptquelle Ort für Ort über Firecrawl erweitern (Ringplan, Credit-Budget)
 │   ├── analyzer.py             <- KI-Analyse (Claude API) + harte Filterregeln
 │   ├── filters.py              <- harte Zulassungsregeln (VOR der KI-Analyse)
-│   ├── mailer.py               <- Gmail-Versand (OAuth2)
 │   ├── dateihilfen.py          <- gemeinsame Helfer (atomares JSON-Schreiben)
 │   ├── merge_hilfen.py         <- gemeinsame Merge-/Dedup-Logik für Zusatzquellen
-│   ├── main.py                 <- Orchestrator: startet Scraper -> Analyzer -> lokalen Server
-│   └── frontend/index.html     <- einfache lokale Vorschau-Oberfläche (von main.py ausgeliefert)
+│   └── main.py                 <- Startbefehl: Scraper -> Analyzer -> Statistik
 │
 │   Daneben pflegt Marcel lokal noch mehrere quellen-spezifische Scraper/Merge-
 │   Skripte, die zusätzliche öffentliche Register/Verzeichnisse mit der
@@ -106,8 +100,8 @@ therapie-mailer/
 │   ├── results_raw.json          <- rohe Scraper-Ausgabe
 │   ├── results_analyzed.json     <- nach KI-Analyse + Filterung (Endergebnis)
 │   ├── ausgeschlossen.json       <- Analyzer-Log: alle automatisch Ausgeschlossenen MIT Begründung
-│   ├── excluded.json             <- manuell ausgeblendete Profile (über die lokale Vorschau)
-│   ├── sent_log.json             <- Versandhistorie
+│   ├── excluded.json             <- von Hand ausgeblendete Praxen
+│   ├── sent_log.json             <- alte Versandliste (aus der Zeit vor der Webapp)
 │   └── archiv/                   <- letzte Sicherung vor großen Umbauten + ausgemusterte Einmal-Skripte
 │
 ├── docs/                      <- Projektdokumente (nicht öffentlich, siehe .gitignore)
@@ -135,12 +129,12 @@ playwright install chromium        # einmalig
 cp ../.env.example ../.env          # dann ANTHROPIC_API_KEY eintragen
                                     # (alternativ: export ANTHROPIC_API_KEY=dein_key)
 
-python main.py                      # scrapt, analysiert, öffnet lokale Vorschau im Browser
+python main.py                      # scrapt, analysiert, zeigt die Zahlen
 python main.py --skip-scraper       # nur neu analysieren (results_raw.json existiert schon)
 python main.py --skip-analyzer      # nur scrapen, ohne KI-Analyse (kein API-Key nötig)
 python main.py --skip-scraper --neu-analyse-alt  # auch alte Ergebnisse ohne Inhalts-Hash neu analysieren (kostet API-Aufrufe)
 python main.py --only-emails        # nur fehlende Emails nachrecherchieren
-python main.py --stats              # nur Statistik ausgeben, kein Server
+python main.py --stats              # nur Statistik ausgeben
 ```
 
 Einzugsgebiet erweitern (braucht `FIRECRAWL_API_KEY` in der `.env`):
@@ -160,7 +154,6 @@ Scraper und bricht sofort ab, wenn er fehlt – sonst würde erst der Analyzer
 nach dem stundenlangen Scraping-Lauf scheitern.
 
 `backend/pfade.py` legt fest, wo alle Ergebnisdateien landen (`../data/`)
-und wo die Secrets erwartet werden (`../credentials.json`, `../token.json`)
 – unabhängig davon, aus welchem Verzeichnis man ein Skript startet.
 
 ## Tests
@@ -172,8 +165,7 @@ cd webapp && npm test                           # Webapp (node --test)
 ```
 
 Die Backend-Tests liegen in `tests/` und decken jeweils ein Modul ab, u.a.
-`test_analyzer.py`, `test_dateihilfen.py`, `test_filters.py`, `test_mailer.py`,
-`test_main.py`, `test_main_server.py` (echter lokaler Vorschau-Server),
+`test_analyzer.py`, `test_dateihilfen.py`, `test_filters.py`, `test_main.py`,
 `test_merge_hilfen.py`, `test_pfade.py`, `test_scraper.py`,
 `test_scraper_ablauf.py` (Blättern, Resume, Ban-Stopp, Email-Suche mit
 Browser-Attrappe), `test_stats_export.py`, `test_umkreis_ausbau.py`,
@@ -193,7 +185,7 @@ der jeweiligen Testdatei für den Hintergrund).
 
 ## Secrets
 
-`.env`, `credentials.json`, `token.json` sowie alles unter `data/`
+`.env` sowie alles unter `data/`
 und `deliverables/` (dort liegen dieselben personenbezogenen
 Kontaktdaten als xlsx/pdf) sind in `.gitignore` eingetragen; ebenso `*.pdf`
 und `*.xlsx` direkt im Root. Als Vorlage für die eigene `.env` dient

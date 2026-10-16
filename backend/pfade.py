@@ -1,24 +1,13 @@
-"""
-Zentrale Pfade fuer alle Backend-Skripte.
+"""Alle Datei- und Ordnerpfade des Backends an einer Stelle.
 
-Vorher hatte jedes Skript seine eigenen bare-relativen Dateinamen
-("results_raw.json", "credentials.json", ...). Das funktioniert nur, wenn
-man das jeweilige Skript zufaellig mit dem Projekt-Root als aktuellem
-Arbeitsverzeichnis startet -- ruft man z.B. main.py aus einem anderen Ordner
-auf, oder importiert ein Skript aus einem anderen Ordner, landen neue
-Dateien am falschen Ort oder bestehende werden nicht gefunden.
+Die Pfade hängen nur davon ab, wo diese Datei liegt, nicht davon, aus
+welchem Ordner ein Skript gestartet wird. So landen Ergebnisse immer in
+`data/`, egal wie man `python ...` aufruft.
 
-Alles hier basiert auf Path(__file__), nicht auf dem Arbeitsverzeichnis --
-funktioniert also unabhaengig davon, von wo aus ein Skript gestartet wird.
-
-Verzeichnis-Layout (siehe auch README.md im Projekt-Root):
     therapie-mailer/
-    |- backend/          <- dieses Verzeichnis (Scraper, Analyzer, Mailer, ...)
-    |  |- frontend/       <- einfache lokale Vorschau-Oberflaeche (siehe main.py)
-    |- data/              <- alle Scraping-/Analyse-Ergebnisse (JSON)
-    |  |- archiv/          <- alte, ueberholte Zwischenstaende (nicht mehr live genutzt)
-    |- credentials.json   <- Gmail-OAuth-Client (Secret, siehe .gitignore)
-    |- token.json         <- Gmail-Login-Token (Secret, siehe .gitignore)
+    |- backend/   <- Python-Code (dieser Ordner)
+    |- data/      <- alle Ergebnisse als JSON (nicht im Git)
+       |- archiv/ <- alte Sicherungen
 """
 from pathlib import Path
 
@@ -27,16 +16,13 @@ PROJEKT_ROOT = BACKEND_DIR.parent
 
 DATA_DIR = PROJEKT_ROOT / "data"
 DATA_ARCHIV_DIR = DATA_DIR / "archiv"
-FRONTEND_DIR = BACKEND_DIR / "frontend"
 
-CREDENTIALS_FILE = PROJEKT_ROOT / "credentials.json"
-TOKEN_FILE = PROJEKT_ROOT / "token.json"
-
+# Rohdaten aller Quellen und das Ergebnis nach Filter + Analyse.
 RESULTS_RAW = DATA_DIR / "results_raw.json"
 RESULTS_ANALYZED = DATA_DIR / "results_analyzed.json"
-# Generisch benannt (nicht nach der jeweiligen externen Quelle), damit dieses
-# oeffentliche Repo nicht dokumentiert, welche zusaetzlichen Register/Verzeichnisse
-# konkret abgeglichen werden -- siehe README fuer den Hintergrund.
+
+# Rohdaten der zusätzlichen Register. Bewusst neutral benannt, damit das
+# öffentliche Repo nicht verrät, welche Verzeichnisse genau abgeglichen werden.
 RESULTS_QUELLE_A_RAW = DATA_DIR / "results_quelle_a_raw.json"
 RESULTS_QUELLE_B_RAW = DATA_DIR / "results_quelle_b_raw.json"
 RESULTS_QUELLE_C_RAW = DATA_DIR / "results_quelle_c_raw.json"
@@ -44,26 +30,27 @@ RESULTS_QUELLE_D_RAW = DATA_DIR / "results_quelle_d_raw.json"
 RESULTS_QUELLE_E_RAW = DATA_DIR / "results_quelle_e_raw.json"
 RESULTS_QUELLE_G_RAW = DATA_DIR / "results_quelle_g_raw.json"
 
-# Alte, adressgenaue km-Werte aus der Zeit vor der PLZ-Tabelle (bis 4.10.2026
-# per Nominatim ermittelt). build_webapp_chunks.py liest sie nur noch und
-# bevorzugt sie vor dem PLZ-Wert; neu geschrieben wird hier nichts mehr.
+# Alte, adressgenaue Entfernungen aus der Zeit vor der PLZ-Tabelle.
+# build_webapp_chunks.py liest sie nur noch, neu geschrieben wird nichts.
 GEOCODE_CACHE = DATA_DIR / "geocode_cache.json"
 
-# Zwei unterschiedliche "Ausschluss"-Dateien, leicht zu verwechseln:
-AUSGESCHLOSSEN_LOG = DATA_DIR / "ausgeschlossen.json"        # AUSGABE von analyzer.py/filters.py: alle automatisch ausgeschlossenen Profile MIT Begruendung (Audit-Log, wird bei jedem Lauf neu geschrieben)
-MANUELL_AUSGESCHLOSSEN = DATA_DIR / "excluded.json"          # von main.py gepflegt: Profile, die man ueber "Ausblenden" in der lokalen Vorschau manuell ausgeblendet hat (persistent, wird nicht ueberschrieben)
+# Zwei Ausschluss-Dateien, leicht zu verwechseln:
+# - ausgeschlossen.json schreibt der Analyzer bei JEDEM Lauf neu: wer von den
+#   Filterregeln aussortiert wurde und warum.
+# - excluded.json pflegst du von Hand: Praxen, die nie in der App landen
+#   sollen. Wird nie automatisch überschrieben.
+AUSGESCHLOSSEN_LOG = DATA_DIR / "ausgeschlossen.json"
+MANUELL_AUSGESCHLOSSEN = DATA_DIR / "excluded.json"
 
-# Persistente Skip-Liste fuer analyzer.py: Profile, die die KI in Kombination
-# mit gkv_art == "privat" als "keine GKV-Option" eingestuft hat (siehe grosser
-# Kommentar in analyzer.main()). Ohne diese Datei wuerden bei jedem Resume-Lauf
-# dieselben Profile am Anfang der Liste erneut per KI-Call neu bewertet -- bei
-# einem laengeren zusammenhaengenden Block aus Privatpraxen kommt der Batch
-# dadurch nie ueber diesen Block hinaus (siehe Audit-Befund B12).
+# Praxen, die der Analyzer als "keine Kasse" übersprungen hat. Ohne diese
+# Liste würde jeder neue Lauf dieselben Privatpraxen wieder an die KI schicken.
 UEBERSPRUNGEN_LOG = DATA_DIR / "uebersprungen.json"
 
-SENT_LOG = DATA_DIR / "sent_log.json"                        # Versandhistorie (main.py /send-Endpunkt)
+# Alte Versandliste aus der Zeit, als das Backend selbst Mails verschickt hat.
+# dedupe_bestand.py nutzt sie noch: bereits angeschriebene Praxen bleiben beim
+# Zusammenführen von Dubletten bevorzugt erhalten.
+SENT_LOG = DATA_DIR / "sent_log.json"
 
-# AUSGABE von stats_export.py: reine Zaehl-Kennzahlen (keine Namen, keine
-# Kontaktdaten) fuer den woechentlichen n8n-Automatisierungs-Workflow, siehe
-# stats_export.py fuer Details.
+# Reine Zählwerte (keine Namen, keine Kontaktdaten) für den wöchentlichen
+# n8n-Bericht, siehe stats_export.py.
 STATS_WOECHENTLICH = DATA_DIR / "stats_woechentlich.json"

@@ -1,6 +1,6 @@
 # Backend-Tests (pytest) bei jedem Push und Pull Request.
-# Kein Test braucht einen echten Browser, echte API-Schluessel oder Netzwerk:
-# Playwright, Claude-API und Gmail werden in den Tests durch Attrappen ersetzt.
+# Kein Test braucht echte API-Schluessel oder Internet: Claude-API, Firecrawl
+# und fremde Websites werden in den Tests durch Attrappen ersetzt.
 name: Backend-Tests
 
 on:
@@ -18,5 +18,9 @@ jobs:
           cache: pip
       - name: Abhaengigkeiten installieren
         run: pip install -r requirements.txt
+      # Fuer die wenigen Tests, die echtes HTML in einem echten (lokalen,
+      # vom Netz abgeschnittenen) Chromium auslesen.
+      - name: Chromium fuer Playwright
+        run: python -m playwright install --with-deps chromium
       - name: Tests ausfuehren
         run: python -m pytest -q
