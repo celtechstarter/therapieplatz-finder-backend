@@ -1,8 +1,5 @@
 """Tests fuer backend/build_plz_tabelle.py (PLZ-Koordinaten fuer die Webapp)."""
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 import build_plz_tabelle as b
 

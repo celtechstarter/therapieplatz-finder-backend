@@ -6,9 +6,7 @@ Kein Test geht ins Netz: die Entfernung kommt seit 4.10.2026 aus der lokalen
 PLZ-Tabelle (km_aus_plz), main() laeuft komplett in einem Temp-Ordner (siehe
 Abschnitt "main()" unten)."""
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 import build_webapp_chunks as b
 

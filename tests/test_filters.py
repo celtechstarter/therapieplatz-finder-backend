@@ -4,12 +4,9 @@ Diese Regeln sind der wichtigste Einzelpunkt im ganzen Projekt: ein Fehler
 hier heisst entweder "Therapeut faelschlich ausgeschlossen" (verpasste
 Chance) oder "Therapeut faelschlich aufgenommen" (falsche Erwartung beim
 Nutzer, z.B. eine KJP-Praxis, die gar keine Erwachsenen behandelt)."""
-import sys
-from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 import filters
 
@@ -361,3 +358,49 @@ def test_echte_erwachsenen_nachweise_bleiben_bestaetigt(beruf):
 def test_kassenaerztliche_vereinigung_ist_kein_beruf():
     assert filters._approbations_status(
         "kassensitz laut kassenärztliche vereinigung westfalen-lippe")[0] == "keine"
+
+
+# ---------- Hinweis "Berufsbezeichnung unklar" ----------
+
+def _erwachsenenprofil(name, text=""):
+    return {"name": name, "persoenliches_profil": text,
+            "therapieangebot": ["Einzeltherapie: Erwachsene"],
+            "abrechnungsarten": ["Gesetzliche Krankenversicherung"]}
+
+
+def test_ohne_jede_berufsbezeichnung_gibt_es_einen_pruefhinweis():
+    ergebnis = filters.pruefe_profil(_erwachsenenprofil("Praxis am Markt", "Gesprächstherapie für Erwachsene."))
+    assert ergebnis["ok"] is True
+    assert any("Berufsbezeichnung" in w for w in ergebnis["warnungen"])
+
+
+def test_allgemeine_bezeichnung_psychotherapeutin_reicht_gegen_den_hinweis():
+    ergebnis = filters.pruefe_profil(_erwachsenenprofil("Praxis am Markt", "Ich bin Psychotherapeutin."))
+    assert not any("Berufsbezeichnung" in w for w in ergebnis["warnungen"])
+
+
+def test_bestaetigte_approbation_ohne_jeden_hinweis():
+    ergebnis = filters.pruefe_profil(_erwachsenenprofil("Dipl.-Psych. Anna Beispiel, Psychologische Psychotherapeutin"))
+    assert ergebnis == {"ok": True, "grund": "", "warnungen": []}
+
+
+def test_verneinung_ganz_am_textanfang_wird_erkannt():
+    """Die Verneinung steht im allerersten Wort des Textes (Position 0)."""
+    assert filters._ist_verneint("ohne approbation", len("ohne "))
+    assert not filters._ist_verneint("mit approbation", len("mit "))
+
+
+def test_main_schreibt_die_ausgeschlossenen_mit_grund(tmp_path, monkeypatch):
+    import json
+    import pfade
+    roh, log = tmp_path / "roh.json", tmp_path / "raus.json"
+    roh.write_text(json.dumps([
+        {"name": "A", "titel": "Psychologische Psychotherapeutin", "abrechnungsarten": ["Gesetzliche Krankenkassen"],
+         "therapieangebot": ["Einzeltherapie Erwachsene"]},
+        {"name": "B", "titel": "Kinder- und Jugendlichenpsychotherapeutin",
+         "therapieangebot": ["Einzeltherapie Kinder"]},
+    ]), encoding="utf-8")
+    monkeypatch.setattr(pfade, "AUSGESCHLOSSEN_LOG", log)
+    assert filters.main([str(roh)]) == 1
+    [raus] = json.loads(log.read_text(encoding="utf-8"))
+    assert raus["name"] == "B" and raus["ausschluss_grund"]

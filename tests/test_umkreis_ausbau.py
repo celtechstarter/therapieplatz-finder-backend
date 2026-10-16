@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 import umkreis_ausbau as ua
 
@@ -201,7 +200,8 @@ def test_firecrawl_liefert_html_und_credits_und_schickt_key_nur_im_header():
     url, headers, body = http.aufrufe[0]
     assert url == ua.FIRECRAWL_URL and headers["Authorization"] == "Bearer fc-test"
     assert "fc-test" not in json.dumps(body)
-    assert body["formats"] == ["rawHtml"]
+    # Rohes HTML der ganzen Seite: lies_profil braucht alle Profilblöcke.
+    assert body == {"url": "https://www.therapie.de/profil/a/", "formats": ["rawHtml"], "onlyMainContent": False}
 
 
 def test_firecrawl_402_heisst_credits_leer():
@@ -238,6 +238,29 @@ def test_doku_ersetzt_nur_auto_bereich(tmp_path):
     assert "| Dortmund | 0 | Bestand |" in text
     assert "| Bielefeld | fertig | 2026-10-01 | 5 | 2 | 8 |" in text
     assert text.count(ua.DOKU_START) == 1
+
+
+def test_doku_wird_neu_angelegt_wenn_es_sie_noch_nicht_gibt(tmp_path):
+    pfad = tmp_path / "neu" / "U.md"
+    status = ua.lade_status(tmp_path / "x.json")
+    status["orte"]["Kamen"] = {"status": "fertig", "neu": 3}
+    status["orte"]["Hamm"] = {"status": "fertig", "neu": 1}
+    status["orte"]["Lünen"] = {"status": "teilweise", "neu": 2}
+    ua.schreibe_doku(status, pfad, JETZT(), quellen={})
+    text = pfad.read_text(encoding="utf-8")
+    assert text.startswith("# Umkreis-Ausbau\n\n" + ua.DOKU_START)
+    assert "**Stand:** 2 Orte fertig, 6 neue Profile über Firecrawl." in text
+
+
+def test_doku_mit_nur_einem_marker_wird_nicht_zerschnitten(tmp_path):
+    """Fehlt der Endmarker (z. B. von Hand gelöscht), bleibt der alte Text
+    komplett erhalten und der neue Bereich wird angehängt."""
+    pfad = tmp_path / "U.md"
+    pfad.write_text(f"# Eigene Notizen\n{ua.DOKU_START}\nhalb\n", encoding="utf-8")
+    ua.schreibe_doku(ua.lade_status(tmp_path / "x.json"), pfad, JETZT(), quellen={})
+    text = pfad.read_text(encoding="utf-8")
+    assert text.startswith(f"# Eigene Notizen\n{ua.DOKU_START}\nhalb\n")
+    assert text.count(ua.DOKU_ENDE) == 1
 
 
 def test_echte_doku_datei_hat_auto_marker():

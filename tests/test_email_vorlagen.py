@@ -8,10 +8,7 @@ ohne diese Aenderung haette jede Person beim Senden eine Anfrage mit
 Marcels Namen und Diagnose verschickt statt ihrer eigenen (siehe
 Modul-Docstring fuer Details)."""
 import re
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 import email_vorlagen
 

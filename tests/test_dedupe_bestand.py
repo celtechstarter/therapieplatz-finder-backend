@@ -1,11 +1,11 @@
 """Tests fuer backend/dedupe_bestand.py (Aufraeumen der 88 Alt-Dubletten,
 siehe Modul-Docstring dort fuer den Hintergrund)."""
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+import pytest
 
-from dedupe_bestand import entscheide, wende_an  # noqa: E402
+
+from dedupe_bestand import entscheide, wende_an
 
 
 def _basis(profil_url, name, adresse, **kwargs):
@@ -153,9 +153,9 @@ def test_wende_an_ist_konsistent_zwischen_raw_und_analysiert():
 
 # ---------- Durchlauf 2: Dubletten nur in den Rohdaten (4.10.2026) ----------
 
-import json  # noqa: E402
+import json
 
-import dedupe_bestand  # noqa: E402
+import dedupe_bestand
 
 
 def test_analysierter_eintrag_gewinnt_auch_gegen_reicheren_rohdaten_eintrag():
@@ -228,3 +228,68 @@ def test_main_entfernt_im_rohdaten_durchlauf_nie_einen_app_eintrag(tmp_path, mon
 
     assert {e["profil_url"] for e in json.loads(raw_datei.read_text())} == {"u-app1", "u-app2"}
     assert len(json.loads(an_datei.read_text())) == 2
+
+
+# ---------- Zusammenführen im Detail ----------
+
+def test_vorhandene_werte_des_primary_werden_nie_ueberschrieben():
+    primary = _basis("https://x/p", "Anna Beispiel", "Beispielstr 1, Dortmund",
+                     email="a@praxis.de", telefon="0231 1", website="")
+    andere = _basis("https://x/a", "Frau Anna Beispiel", "Beispielstr 1, Dortmund",
+                    email="", telefon="0231 2", website="https://anna-praxis.de",
+                    behandlungsschwerpunkte=None, abrechnungsarten=["Selbstzahler"])
+    [ergebnis] = wende_an([primary, andere], entscheide([primary, andere], set()))
+    assert ergebnis["telefon"] == "0231 1"                     # bleibt
+    assert ergebnis["website"] == "https://anna-praxis.de"     # war leer -> aufgefüllt
+    assert ergebnis["abrechnungsarten"] == ["Selbstzahler"]    # Liste vereinigt
+    assert ergebnis["behandlungsschwerpunkte"] == []           # None in der Dublette stört nicht
+
+
+def test_gleiche_email_verbindet_trotz_anderer_adresse_und_telefon():
+    a = _basis("https://x/a", "Anna Beispiel", "Beispielstr 1, Dortmund", email="Praxis@Beispiel-Anna.de", telefon="0231 1")
+    b = _basis("https://x/b", "Dipl.-Psych. Anna Beispiel", "Ganz woanders 9, Unna", email="praxis@beispiel-anna.de ",
+               telefon="02303 2")
+    [entscheidung] = entscheide([a, b], set())
+    assert sorted([entscheidung["primary_url"], *entscheidung["entfernte_urls"]]) == ["https://x/a", "https://x/b"]
+    assert entscheidung["email_konflikt"] is None   # gleiche Adresse, nur andere Schreibweise
+
+
+def test_gleiche_email_bei_anderem_namen_verbindet_nicht():
+    a = _basis("https://x/a", "Anna Beispiel", "A-Str 1, Dortmund", email="team@praxis.de")
+    b = _basis("https://x/b", "Peter Muster", "B-Str 2, Dortmund", email="team@praxis.de")
+    assert entscheide([a, b], set()) == []
+
+
+def test_konflikt_nennt_nur_die_wirklich_anderen_adressen():
+    primary = _basis("https://x/p", "Anna Beispiel", "Beispielstr 1, Dortmund", email="ANNA@praxis.de",
+                     volltext="x" * 500)
+    b = _basis("https://x/b", "Anna Beispiel", "Beispielstr 1, Dortmund", email="anna@andere.de")
+    [e] = entscheide([primary, b], set())
+    assert e["primary_url"] == "https://x/p"
+    assert e["email_konflikt"] == ("anna@praxis.de", ["anna@andere.de"])
+
+
+def test_warnhinweis_bleibt_einmalig_und_alte_warnungen_bleiben_erhalten():
+    primary = _basis("https://x/p", "Anna Beispiel", "Beispielstr 1, Dortmund", email="a@eins.de",
+                     filter_warnungen=["alte Warnung"], volltext="lang" * 100)
+    b = _basis("https://x/b", "Anna Beispiel", "Beispielstr 1, Dortmund", email="a@zwei.de")
+    entscheidungen = entscheide([primary, b], set())
+    einmal = wende_an([dict(primary), dict(b)], entscheidungen)
+    zweimal = wende_an([dict(einmal[0]), dict(b)], entscheidungen)
+    warnungen = zweimal[0]["filter_warnungen"]
+    assert warnungen[0] == "alte Warnung"
+    assert len(warnungen) == 2 and "a@zwei.de" in warnungen[1]
+
+
+@pytest.mark.parametrize("reicher", [
+    {"volltext": "x" * 50},
+    {"persoenliches_profil": "x" * 50},
+    {"behandlungsschwerpunkte": ["Depression", "Angst"]},
+    {"freie_plaetze": "Wartezeit 3 Monate"},
+    {"email": "a@praxis.de"},
+])
+def test_reicherer_eintrag_gewinnt(reicher):
+    arm = _basis("https://x/arm", "Anna Beispiel", "Beispielstr 1, Dortmund")
+    reich = _basis("https://x/reich", "Anna Beispiel", "Beispielstr 1, Dortmund", **reicher)
+    for reihenfolge in ([arm, reich], [reich, arm]):
+        assert entscheide(reihenfolge, set())[0]["primary_url"] == "https://x/reich"

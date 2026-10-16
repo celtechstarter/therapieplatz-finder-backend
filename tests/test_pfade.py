@@ -6,12 +6,10 @@ Fall wird ein leerer Stand über echte Daten geschrieben.
 """
 import importlib
 import os
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-import pfade  # noqa: E402
+import pfade
 
 
 def test_pfade_haengen_nicht_vom_arbeitsordner_ab(tmp_path, monkeypatch):

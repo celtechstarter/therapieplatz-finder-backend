@@ -86,8 +86,8 @@ def main(argv=None):
 
     if "--only-emails" in argv:
         print("=== MODUS: Nur E-Mail-Suche ===")
-        import scraper
-        asyncio.run(scraper.enrich_emails())
+        import email_suche
+        asyncio.run(email_suche.ergaenze_emails())
         return
 
     if "--skip-analyzer" not in argv:

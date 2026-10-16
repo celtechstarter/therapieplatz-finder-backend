@@ -40,11 +40,14 @@ therapie-mailer/
   - Persönliches Profil (Freitext)
   - Profil-URL
 - Speichert alles in `data/results_raw.json`
-- SSRF-Schutz beim Besuch von Praxis-Websites (`enrich_emails`): `ssrf_schutz_einrichten()` hängt vor der ersten
-  Navigation einen Route-Handler an den Browser-Context, der JEDEN Request
-  (auch Redirect-Ziele und Subressourcen) gegen `_ist_oeffentliche_http_url`
-  prüft und nicht-öffentliche Ziele abbricht (Review #13).
-  `_nach_navigation_erlaubt()` bleibt als zweite Absicherung.
+- E-Mail-Nachsuche liegt in `backend/email_suche.py` (`ergaenze_emails()`):
+  erst aus dem Profiltext, dann nur die eigene Praxis-Website aus dem Profil
+  (keine Suchmaschine).
+- SSRF-Schutz (`backend/browser_schutz.py`): `ssrf_schutz_einrichten()` hängt
+  vor der ersten Navigation einen Route-Handler an den Browser-Context, der
+  JEDEN Request (auch Redirect-Ziele und Subressourcen) gegen
+  `ist_oeffentliche_http_url` prüft und nicht-öffentliche Ziele abbricht
+  (Review #13). `nach_navigation_erlaubt()` bleibt als zweite Absicherung.
 
 ## UMKREIS-AUSBAU (backend/umkreis_ausbau.py)
 - Erweitert therapie.de Ort für Ort über Firecrawl (`FIRECRAWL_API_KEY` in
@@ -88,7 +91,11 @@ gibt es nicht mehr).
   `(behalten, ausgeschlossen)` zurück.
 - Die Ausgeschlossenen landen mit Begründung in `data/ausgeschlossen.json`.
 
-## ANALYZER (backend/analyzer.py)
+## ANALYZER (backend/analyzer.py + analyse_regeln.py + analyse_ki.py)
+- Aufteilung: `analyzer.py` = Ablauf (`analysiere()` ist eine reine Funktion,
+  KI/Zeit/Zufall/Speichern werden hineingereicht), `analyse_regeln.py` =
+  alles ohne KI (Hash, `zu_wenig_angaben`, `analyse_ohne_ki`,
+  `analyse_per_regel`), `analyse_ki.py` = Claude-Aufruf und Antwortprüfung.
 - Liest `data/results_raw.json`
 - Schritt 1: `filters.filtere()` (siehe oben). Schritt 2: KI-Analyse nur für
   die verbliebenen Profile. Bereits analysierte Profile werden übersprungen
@@ -120,8 +127,8 @@ gibt es nicht mehr).
   Wortsuche (Verneinung wie "keine freien Plaetze"/"Aufnahmestopp" gewinnt).
   Kostenloser Standardweg, solange kein API-Guthaben da ist.
 - Für jeden Therapeuten wird das Profil an die Claude API geschickt.
-- Claude liefert genau diese drei Felder (`ERLAUBTE_ANALYSE_FELDER` in
-  `analyzer.py`) – alles andere aus der Antwort wird verworfen, damit ein
+- Claude liefert genau diese drei Felder (`ERLAUBTE_FELDER` in
+  `analyse_ki.py`) – alles andere aus der Antwort wird verworfen, damit ein
   präparierter Profiltext per Prompt Injection keine Originaldaten wie
   `email` oder `name` überschreiben kann:
   1. GKV_akzeptiert: true/false/"unklar"
@@ -163,7 +170,7 @@ gibt es nicht mehr).
 - Wer in die finale Liste kommt, entscheiden `filters.filtere()` (siehe oben)
   UND `GKV_akzeptiert` true/unklar aus der KI-Analyse zusammen – nicht mehr
   `Relevant`/`Einzeltherapie_Erwachsene` (die Felder liefert die KI nicht
-  mehr, siehe `ERLAUBTE_ANALYSE_FELDER`).
+  mehr, siehe `analyse_ki.ERLAUBTE_FELDER`).
 - Speichert in `data/results_analyzed.json`
 
 ## MAIN (backend/main.py)
@@ -178,6 +185,6 @@ Feste Versionen, siehe Kommentar in `requirements.txt`.
 
 ## Wichtige Hinweise
 - Fehlerbehandlung überall (Seiten die nicht laden, fehlende Felder etc.)
-- Rate limiting beim Scrapen: 4 bis 6,5 Sekunden zwischen Requests (`DELAY_MIN`/`DELAY_MAX` in scraper.py), bei 403/429/Captcha sofort Stopp
+- Rate limiting beim Scrapen: 4 bis 6,5 Sekunden zwischen Requests (`PAUSE_MIN`/`PAUSE_MAX` in scraper.py), bei 403/429/Captcha sofort Stopp
 - Fortschrittsanzeige im Terminal während des Scrapens
 - ANTHROPIC_API_KEY als Umgebungsvariable lesen

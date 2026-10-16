@@ -6,12 +6,11 @@ kannte nur akademische Titel. Dadurch griff dedup_schluessel() nie zwischen
 so einem Eintrag und derselben Person aus einer anderen Quelle -- 88
 Therapeuten standen doppelt in den Daten (siehe Commit-Message fuer Details).
 """
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+import pytest
 
-from merge_hilfen import (  # noqa: E402
+
+from merge_hilfen import (
     dedup_schluessel,
     normalisiere_adresse,
     normalisiere_name,
@@ -111,3 +110,63 @@ def test_normalisiere_telefon_ignoriert_schreibvarianten():
 def test_normalisiere_telefon_leer_ohne_ziffern():
     assert normalisiere_telefon("") == ""
     assert normalisiere_telefon(None) == ""
+
+
+# ---------- ist_praxis_website ----------
+
+@pytest.mark.parametrize("href,erwartet", [
+    ("https://www.praxis-beispiel.de", True),
+    ("https://www.google.com/maps/search/?api=1&query=51.4,7.5", False),
+    ("https://maps.google.de/?q=x", False),
+    ("https://maps.apple.com/place?q=x", False),
+    ("https://www.openstreetmap.org/#map=1", False),
+    ("https://WWW.THERAPIE.DE/profil/x/", False),   # Groß-/Kleinschreibung egal
+    ("", False), (None, False),
+])
+def test_ist_praxis_website(href, erwartet):
+    from merge_hilfen import ist_praxis_website
+    assert ist_praxis_website(href) is erwartet
+
+
+# ---------- merge ----------
+
+def _anreichern_mit_telefon(bestehend, zusatz):
+    if not bestehend.get("telefon") and zusatz.get("telefon"):
+        bestehend["telefon"] = zusatz["telefon"]
+        return True
+    return False
+
+
+def test_merge_zaehlt_neue_und_angereicherte_eintraege():
+    from merge_hilfen import merge
+    roh = [{"profil_url": "r1", "name": "Anna Beispiel", "adresse": "Beispielstr 1, 44135 Dortmund"}]
+    zusatz = [
+        {"profil_url": "z1", "name": "Frau Anna Beispiel", "adresse": "Beispielstr. 1, 44135 Dortmund", "telefon": "0231 1"},
+        {"profil_url": "z2", "name": "Peter Probe", "adresse": "Testweg 2, 44137 Dortmund"},
+        {"profil_url": "z3", "name": "Peter Probe", "adresse": "Testweg 2, 44137 Dortmund"},   # Dublette von z2
+        {"profil_url": "r1", "name": "egal"},                                                 # URL schon da
+    ]
+    ergebnis, neu, angereichert = merge(roh, zusatz, _anreichern_mit_telefon)
+    assert (neu, angereichert) == (1, 1)
+    assert [e["profil_url"] for e in ergebnis] == ["r1", "z2"]
+    assert roh[0]["telefon"] == "0231 1"
+    assert len(roh) == 1   # die Eingabeliste selbst wächst nicht
+
+
+def test_merge_uebernimmt_eintraege_ohne_name_und_adresse_statt_sie_zu_verwerfen():
+    from merge_hilfen import merge
+    ergebnis, neu, _ = merge([], [{"profil_url": "a"}, {"profil_url": "b"}], _anreichern_mit_telefon)
+    assert neu == 2 and [e["profil_url"] for e in ergebnis] == ["a", "b"]
+
+
+def test_merge_ohne_aenderung_zaehlt_nicht_als_angereichert():
+    from merge_hilfen import merge
+    roh = [{"profil_url": "r1", "name": "Anna Beispiel", "adresse": "Beispielstr 1", "telefon": "da"}]
+    _, neu, angereichert = merge(roh, [{"profil_url": "z1", "name": "Anna Beispiel", "adresse": "Beispielstr 1",
+                                        "telefon": "anders"}], _anreichern_mit_telefon)
+    assert (neu, angereichert) == (0, 0)
+
+
+def test_dedup_schluessel_reicht_name_oder_adresse_allein():
+    assert dedup_schluessel({"name": "Anna Beispiel"}) == ("anna beispiel", "")
+    assert dedup_schluessel({"adresse": "Beispielstr 1"}) is not None

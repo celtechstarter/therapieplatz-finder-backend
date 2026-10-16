@@ -347,11 +347,17 @@ def filtere(profile, gkv_erforderlich=True, verbose=True):
     return behalten, raus
 
 
-if __name__ == "__main__":
+def main(argv=None):
+    """Filter von Hand laufen lassen: `python filters.py [rohdatei.json]`.
+
+    Schreibt die Ausgeschlossenen mit Grund nach data/ausgeschlossen.json
+    und gibt die Zahl der behaltenen Profile zurück.
+    """
     import sys
     import pfade
     from dateihilfen import json_atomar_schreiben, json_sicher_laden
-    quelle = sys.argv[1] if len(sys.argv) > 1 else str(pfade.RESULTS_RAW)
+    argv = sys.argv[1:] if argv is None else argv
+    quelle = argv[0] if argv else str(pfade.RESULTS_RAW)
     profile = json_sicher_laden(quelle, [])
     print(f"Prüfe {len(profile)} Profile aus {quelle} ...\n")
     behalten, raus = filtere(profile)
@@ -359,3 +365,8 @@ if __name__ == "__main__":
     # würde sonst ein unlesbares Ausschluss-Log hinterlassen.
     json_atomar_schreiben(pfade.AUSGESCHLOSSEN_LOG, raus)
     print(f"Details der Ausgeschlossenen: {pfade.AUSGESCHLOSSEN_LOG}")
+    return len(behalten)
+
+
+if __name__ == "__main__":
+    main()

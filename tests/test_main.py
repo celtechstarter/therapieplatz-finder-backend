@@ -7,14 +7,12 @@ Schalter welche Schritte auslöst, ohne Browser, Netz oder API-Schlüssel.
 import json
 import sys
 import types
-from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-import main  # noqa: E402
-import pfade  # noqa: E402
+import main
+import pfade
 
 
 @pytest.fixture
@@ -28,7 +26,10 @@ def ablauf(monkeypatch):
     async def enrich_emails():
         protokoll.append("emails")
 
-    scraper.main, scraper.enrich_emails = scraper_main, enrich_emails
+    scraper.main = scraper_main
+    email_suche = types.ModuleType("email_suche")
+    email_suche.ergaenze_emails = enrich_emails
+    monkeypatch.setitem(sys.modules, "email_suche", email_suche)
     analyzer = types.ModuleType("analyzer")
     analyzer.main = lambda: protokoll.append("analyzer")
     monkeypatch.setitem(sys.modules, "scraper", scraper)

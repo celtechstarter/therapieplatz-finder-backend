@@ -2,10 +2,8 @@
 der Scraping-/Analyse-Ergebnisse bei einem Absturz mitten im Schreiben
 verhindern soll (Audit-Befund H1)."""
 import json
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 import dateihilfen
 
@@ -59,3 +57,10 @@ def test_sicher_laden_intakte_datei():
         assert dateihilfen.json_sicher_laden(ziel, []) == [1, 2, 3]
     finally:
         ziel.unlink(missing_ok=True)
+
+
+def test_umlaute_bleiben_in_der_datei_lesbar(tmp_path):
+    """Die Dateien werden auch von Hand angesehen: "Müller", nicht "M\\u00fcller"."""
+    ziel = tmp_path / "ergebnis.json"
+    dateihilfen.json_atomar_schreiben(ziel, {"name": "Müller"})
+    assert "Müller" in ziel.read_text(encoding="utf-8")

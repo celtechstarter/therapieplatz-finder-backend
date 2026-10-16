@@ -51,12 +51,11 @@ Darum habe ich mir Regeln gesetzt, die genau das abfangen sollen:
 
 Bekannte Baustellen, die ich selbst sehe:
 
-- **Große Dateien.** `backend/scraper.py` (rund 750 Zeilen) macht mehrere
-  Dinge auf einmal: Suchergebnisse lesen, Profile auslesen, Praxis-Websites
-  nach E-Mails durchsuchen. In der Webapp ist `app/app-views.js` mit rund
-  2.400 Zeilen die größte Datei. Beides sollte in kleinere Module zerlegt
-  werden. Ich habe das bewusst noch nicht gemacht, weil die App live ist und
-  ein großer Umbau ohne Not Fehler einschleppen kann.
+- **Große Dateien.** Im Backend sind Scraper und Analyzer inzwischen in
+  kleine Module mit je einer Aufgabe zerlegt (siehe Verzeichnis-Übersicht).
+  Noch groß ist `backend/umkreis_ausbau.py` (rund 560 Zeilen) und in der
+  Webapp `app/app-views.js` (rund 2.400 Zeilen). Die Webapp ist live, dort
+  baue ich nur in kleinen, einzeln getesteten Schritten um.
 - **Lange Kommentare.** Viele Kommentare erzählen die Geschichte eines
   Bugfixes mit Datum. Das hilft beim Nachvollziehen, macht den Code aber
   länger als nötig.
@@ -82,10 +81,14 @@ therapie-mailer/
 │
 ├── backend/                  <- Python-Pipeline
 │   ├── pfade.py                <- zentrale Pfad-Konstanten (siehe unten)
-│   ├── scraper.py              <- Scraper für die Haupt-Suchseite (Playwright)
+│   ├── scraper.py              <- Suchseiten und Profile von therapie.de lesen (Playwright)
+│   ├── email_suche.py          <- fehlende E-Mails ergänzen (Profiltext, dann eigene Praxis-Website)
+│   ├── browser_schutz.py       <- Browser darf nur öffentliche Adressen öffnen (SSRF-Schutz)
 │   ├── umkreis_ausbau.py       <- Hauptquelle Ort für Ort über Firecrawl erweitern (Ringplan, Credit-Budget)
-│   ├── analyzer.py             <- KI-Analyse (Claude API) + harte Filterregeln
 │   ├── filters.py              <- harte Zulassungsregeln (VOR der KI-Analyse)
+│   ├── analyzer.py             <- Ablauf der Analyse: wer muss neu bewertet werden, Ergebnisse speichern
+│   ├── analyse_regeln.py       <- Bewertung ohne KI (Inhalts-Hash, Wortsuche, "zu wenig Angaben")
+│   ├── analyse_ki.py           <- Bewertung mit Claude (Prompt, Antwort prüfen, nur 3 erlaubte Felder)
 │   ├── dateihilfen.py          <- gemeinsame Helfer (atomares JSON-Schreiben)
 │   ├── merge_hilfen.py         <- gemeinsame Merge-/Dedup-Logik für Zusatzquellen
 │   └── main.py                 <- Startbefehl: Scraper -> Analyzer -> Statistik
@@ -164,20 +167,22 @@ python -m pytest tests/ --cov=backend         # mit Abdeckung (pip install pytes
 cd webapp && npm test                           # Webapp (node --test)
 ```
 
-Die Backend-Tests liegen in `tests/` und decken jeweils ein Modul ab, u.a.
-`test_analyzer.py`, `test_dateihilfen.py`, `test_filters.py`, `test_main.py`,
-`test_merge_hilfen.py`, `test_pfade.py`, `test_scraper.py`,
-`test_scraper_ablauf.py` (Blättern, Resume, Ban-Stopp, Email-Suche mit
-Browser-Attrappe), `test_stats_export.py`, `test_umkreis_ausbau.py`,
-`test_build_webapp_chunks.py`, `test_build_plz_tabelle.py`. Kein Test geht ins Netz.
+Die Backend-Tests liegen in `tests/`, eine Testdatei pro Modul
+(`test_scraper.py` für `scraper.py` usw.). Browser, DNS und KI sind dabei
+Attrappen aus `tests/attrappen.py`: Sie schreiben mit, was der Code mit
+ihnen macht (welche Seiten besucht wurden, welche Browser-Optionen gesetzt
+sind). Die Tests prüfen also Verhalten, nicht den Quelltext. Kein Test geht
+ins Netz. `tests/conftest.py` macht `backend/` importierbar und stellt die
+Attrappen als Fixtures bereit.
 
-Abdeckung (Stand 3.10.2026): Backend 88 % der Zeilen in diesem Repo,
+Abdeckung (Stand 16.10.2026): Backend 93 % der Zeilen in diesem Repo,
 Webapp-API ca. 90 %. Die Oberfläche (`webapp/app/`) ist nicht als Zahl
 messbar, weil die Tests sie in einem simulierten Browser laden; sie wird
 von den node-Tests und den Playwright-Browser-Tests geprüft.
-Einzige Ausnahme beim Browser: ein Test in `test_umkreis_ausbau.py` lädt
-ein Beispiel-Profil in einen lokalen Chromium (ohne Netzwerk) und wird
-übersprungen, wenn keiner installiert ist.
+Einzige Ausnahme beim Browser: je ein Test in `test_scraper.py` und
+`test_umkreis_ausbau.py` lädt ein Beispiel-Profil in einen lokalen Chromium
+(alle Netz-Anfragen blockiert) und wird übersprungen, wenn keiner
+installiert ist.
 
 Beides sollte vor jedem Commit grün sein – ein Teil der Tests entstand direkt
 aus echten, im Betrieb gefundenen Fehlern (siehe Docstrings/Commit-Messages
