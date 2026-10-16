@@ -53,7 +53,7 @@ Bekannte Baustellen, die ich selbst sehe:
 
 - **Große Dateien.** Im Backend sind Scraper und Analyzer inzwischen in
   kleine Module mit je einer Aufgabe zerlegt (siehe Verzeichnis-Übersicht).
-  Noch groß ist `backend/umkreis_ausbau.py` (rund 560 Zeilen) und in der
+  Keine Backend-Datei hat mehr als rund 400 Zeilen. Noch groß ist in der
   Webapp `app/app-views.js` (rund 2.400 Zeilen). Die Webapp ist live, dort
   baue ich nur in kleinen, einzeln getesteten Schritten um.
 - **Lange Kommentare.** Viele Kommentare erzählen die Geschichte eines
@@ -84,7 +84,11 @@ therapie-mailer/
 │   ├── scraper.py              <- Suchseiten und Profile von therapie.de lesen (Playwright)
 │   ├── email_suche.py          <- fehlende E-Mails ergänzen (Profiltext, dann eigene Praxis-Website)
 │   ├── browser_schutz.py       <- Browser darf nur öffentliche Adressen öffnen (SSRF-Schutz)
-│   ├── umkreis_ausbau.py       <- Hauptquelle Ort für Ort über Firecrawl erweitern (Ringplan, Credit-Budget)
+│   ├── umkreis_ausbau.py       <- Hauptquelle Ort für Ort über Firecrawl erweitern (Ablauf + Kommandozeile)
+│   ├── umkreis_plan.py         <- Ringplan um Dortmund, Status je Ort, Credits pro Monat
+│   ├── umkreis_abruf.py        <- Seiten über Firecrawl holen und auslesen
+│   ├── umkreis_doku.py         <- schreibt die Übersicht docs/UMKREIS_AUSBAU.md
+│   ├── email_vorlagen.py       <- 40 Beispiel-Anfragen (Texte in daten/anfrage_vorlagen.json)
 │   ├── filters.py              <- harte Zulassungsregeln (VOR der KI-Analyse)
 │   ├── analyzer.py             <- Ablauf der Analyse: wer muss neu bewertet werden, Ergebnisse speichern
 │   ├── analyse_regeln.py       <- Bewertung ohne KI (Inhalts-Hash, Wortsuche, "zu wenig Angaben")

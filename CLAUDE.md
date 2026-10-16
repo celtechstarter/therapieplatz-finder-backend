@@ -50,6 +50,10 @@ therapie-mailer/
   (Review #13). `nach_navigation_erlaubt()` bleibt als zweite Absicherung.
 
 ## UMKREIS-AUSBAU (backend/umkreis_ausbau.py)
+- Aufteilung: `umkreis_plan.py` (Ringplan, Status, Credits),
+  `umkreis_abruf.py` (Firecrawl, Suchseiten, ProfilLeser), `umkreis_doku.py`
+  (docs/UMKREIS_AUSBAU.md, `vermerke_quelle()`), `umkreis_ausbau.py`
+  (Ablauf `lauf()`/`bearbeite_ort()` und `main()`).
 - Erweitert therapie.de Ort für Ort über Firecrawl (`FIRECRAWL_API_KEY` in
   `.env`), in Ringen um Dortmund (`UMKREIS_PLAN`, Ring 0 = Bestand aus
   scraper.py). Filter schon in der Such-URL (`SUCH_FILTER`: Kasse oder
@@ -136,7 +140,7 @@ gibt es nicht mehr).
   2. Freie_Plaetze: true/false/"unklar"
   3. Notiz: kurze Begründung warum empfohlen oder nicht
 - Email_generiert schreibt die KI seit 26.8.2026 NICHT mehr selbst (siehe
-  `backend/email_vorlagen.py`). Stattdessen zieht `analyzer.main()` pro
+  `backend/email_vorlagen.py`, Texte in `backend/daten/anfrage_vorlagen.json`). Stattdessen zieht `analyzer.main()` pro
   Profil zufällig eine von 40 vorformulierten Vorlagen und füllt sie lokal
   mit `anrede_aus_name()`/`therapieform_aus_profil()`. Grund: bei vielen
   Praxen fällt eine identische Serienmail auf, und ein präparierter

@@ -9,7 +9,10 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+import umkreis_abruf as abruf
 import umkreis_ausbau as ua
+import umkreis_doku as udoku
+import umkreis_plan as plan
 
 
 def JETZT():
@@ -57,48 +60,48 @@ def _pfade(tmp_path, raw=None):
 # ---------- Suchseiten ----------
 
 def test_such_url_enthaelt_quellfilter_und_kodierten_ort():
-    url = ua.such_url("Lünen")
+    url = abruf.such_url("Lünen")
     assert "ort=L%C3%BCnen" in url
     assert "abrechnungsverfahren=7" in url and "therapieangebot=1" in url
     assert "page=" not in url
-    assert ua.such_url("Lünen", 3).endswith("&page=3")
+    assert abruf.such_url("Lünen", 3).endswith("&page=3")
 
 
 def test_profil_links_eindeutig_absolut_ohne_info():
-    links = ua.profil_links_aus_html(_liste(["a.b", "c"]))
+    links = abruf.profil_links_aus_html(_liste(["a.b", "c"]))
     assert links == ["https://www.therapie.de/profil/a.b/", "https://www.therapie.de/profil/c/"]
 
 
 def test_trefferzahl_aus_titel():
-    assert ua.trefferzahl_aus_html(_liste(["a"], treffer=79)) == 79
-    assert ua.trefferzahl_aus_html("<html></html>") is None
+    assert abruf.trefferzahl_aus_html(_liste(["a"], treffer=79)) == 79
+    assert abruf.trefferzahl_aus_html("<html></html>") is None
 
 
 # ---------- Plan / Status ----------
 
 def test_naechste_orte_ueberspringt_bestand_und_fertige_und_zieht_angefangene_vor():
-    status = ua.lade_status(Path("/nicht/da.json"))
-    assert "Dortmund" not in ua.naechste_orte(status)
-    erster_ring = [o for o, _ in ua.UMKREIS_PLAN[1]["orte"]]
+    status = plan.lade_status(Path("/nicht/da.json"))
+    assert "Dortmund" not in plan.naechste_orte(status)
+    erster_ring = [o for o, _ in plan.UMKREIS_PLAN[1]["orte"]]
     status["orte"][erster_ring[0]] = {"status": "fertig"}
     status["orte"][erster_ring[2]] = {"status": "teilweise"}
-    naechste = ua.naechste_orte(status, 2)
+    naechste = plan.naechste_orte(status, 2)
     assert naechste[0] == erster_ring[2]
-    assert erster_ring[0] not in ua.naechste_orte(status)
+    assert erster_ring[0] not in plan.naechste_orte(status)
 
 
 def test_plan_ringe_sind_nach_entfernung_sortiert():
-    for ring in ua.UMKREIS_PLAN:
+    for ring in plan.UMKREIS_PLAN:
         kms = [km for _, km in ring["orte"]]
         assert kms == sorted(kms), f"Ring {ring['ring']} nicht sortiert"
-    orte = [o for r in ua.UMKREIS_PLAN for o, _ in r["orte"]]
+    orte = [o for r in plan.UMKREIS_PLAN for o, _ in r["orte"]]
     assert len(orte) == len(set(orte)), "Ort doppelt im Plan"
 
 
 def test_credits_werden_pro_monat_und_ort_gebucht():
-    status = ua.lade_status(Path("/nicht/da.json"))
-    ua.buche_credits(status, 3, "Kamen", JETZT())
-    ua.buche_credits(status, 2, "Kamen", JETZT())
+    status = plan.lade_status(Path("/nicht/da.json"))
+    plan.buche_credits(status, 3, "Kamen", JETZT())
+    plan.buche_credits(status, 2, "Kamen", JETZT())
     assert status["credits_pro_monat"]["2026-09"] == 5
     assert status["orte"]["Kamen"]["credits"] == 5
 
@@ -106,9 +109,9 @@ def test_credits_werden_pro_monat_und_ort_gebucht():
 # ---------- Lauf ----------
 
 def test_lauf_holt_nur_neue_profile_und_markiert_ort_fertig(tmp_path):
-    seiten = {ua.such_url("Kamen", 1): _liste(["alt", "neu1"], treffer=3),
-              ua.such_url("Kamen", 2): _liste(["neu2", "kaputt"]),
-              ua.such_url("Kamen", 3): _liste([])}
+    seiten = {abruf.such_url("Kamen", 1): _liste(["alt", "neu1"], treffer=3),
+              abruf.such_url("Kamen", 2): _liste(["neu2", "kaputt"]),
+              abruf.such_url("Kamen", 3): _liste([])}
     abrufe = []
     raw = [{"profil_url": "https://www.therapie.de/profil/alt/", "name": "Alt"}]
     p = _pfade(tmp_path, raw)
@@ -128,7 +131,7 @@ def test_lauf_holt_nur_neue_profile_und_markiert_ort_fertig(tmp_path):
 
 
 def test_lauf_stoppt_bei_budget_und_macht_spaeter_ohne_suchseiten_weiter(tmp_path):
-    seiten = {ua.such_url("Kamen", 1): _liste(["a", "b", "c"]), ua.such_url("Kamen", 2): _liste([])}
+    seiten = {abruf.such_url("Kamen", 1): _liste(["a", "b", "c"]), abruf.such_url("Kamen", 2): _liste([])}
     p = _pfade(tmp_path)
     abrufe = []
     status = asyncio.run(ua.lauf(["Kamen"], _holer(seiten, abrufe), leser_fabrik=FakeLeser,
@@ -159,7 +162,7 @@ def test_lauf_stoppt_sofort_wenn_ziel_blockiert(tmp_path):
     p = _pfade(tmp_path)
 
     def holen(url):
-        raise ua.ZielBlockiert("therapie.de antwortet mit 429")
+        raise abruf.ZielBlockiert("therapie.de antwortet mit 429")
     status = asyncio.run(ua.lauf(["Kamen", "Lünen"], holen, leser_fabrik=FakeLeser,
                                  budget=50, jetzt=JETZT, **p))
     assert "Lünen" not in status["orte"]
@@ -188,40 +191,40 @@ class FakeHttp:
 
 
 def test_firecrawl_ohne_key_bricht_mit_klarer_meldung_ab():
-    with pytest.raises(ua.FirecrawlFehler, match="FIRECRAWL_API_KEY"):
-        ua.firecrawl_holer("")
+    with pytest.raises(abruf.FirecrawlFehler, match="FIRECRAWL_API_KEY"):
+        abruf.firecrawl_holer("")
 
 
 def test_firecrawl_liefert_html_und_credits_und_schickt_key_nur_im_header():
     http = FakeHttp([FakeAntwort(200, {"data": {"rawHtml": "<p>x</p>",
                                                  "metadata": {"statusCode": 200, "creditsUsed": 1}}})])
-    holen = ua.firecrawl_holer("fc-test", http=http, schlafen=lambda s: None)
+    holen = abruf.firecrawl_holer("fc-test", http=http, schlafen=lambda s: None)
     assert holen("https://www.therapie.de/profil/a/") == ("<p>x</p>", 1)
     url, headers, body = http.aufrufe[0]
-    assert url == ua.FIRECRAWL_URL and headers["Authorization"] == "Bearer fc-test"
+    assert url == abruf.FIRECRAWL_URL and headers["Authorization"] == "Bearer fc-test"
     assert "fc-test" not in json.dumps(body)
     # Rohes HTML der ganzen Seite: lies_profil braucht alle Profilblöcke.
     assert body == {"url": "https://www.therapie.de/profil/a/", "formats": ["rawHtml"], "onlyMainContent": False}
 
 
 def test_firecrawl_402_heisst_credits_leer():
-    holen = ua.firecrawl_holer("k", http=FakeHttp([FakeAntwort(402)]), schlafen=lambda s: None)
-    with pytest.raises(ua.CreditsLeer):
+    holen = abruf.firecrawl_holer("k", http=FakeHttp([FakeAntwort(402)]), schlafen=lambda s: None)
+    with pytest.raises(abruf.CreditsLeer):
         holen("u")
 
 
 def test_firecrawl_429_wartet_und_versucht_erneut():
     pausen = []
     http = FakeHttp([FakeAntwort(429), FakeAntwort(200, {"data": {"rawHtml": "ok", "metadata": {}}})])
-    holen = ua.firecrawl_holer("k", pause=1, http=http, schlafen=pausen.append)
+    holen = abruf.firecrawl_holer("k", pause=1, http=http, schlafen=pausen.append)
     assert holen("u") == ("ok", 1)
     assert 60 in pausen
 
 
 def test_firecrawl_zielseite_403_stoppt():
     http = FakeHttp([FakeAntwort(200, {"data": {"rawHtml": "", "metadata": {"statusCode": 403}}})])
-    holen = ua.firecrawl_holer("k", http=http, schlafen=lambda s: None)
-    with pytest.raises(ua.ZielBlockiert):
+    holen = abruf.firecrawl_holer("k", http=http, schlafen=lambda s: None)
+    with pytest.raises(abruf.ZielBlockiert):
         holen("u")
 
 
@@ -229,26 +232,26 @@ def test_firecrawl_zielseite_403_stoppt():
 
 def test_doku_ersetzt_nur_auto_bereich(tmp_path):
     pfad = tmp_path / "U.md"
-    pfad.write_text(f"# Kopf\n\n{ua.DOKU_START}\nalt\n{ua.DOKU_ENDE}\n\n## Notizen\n- bleibt\n", encoding="utf-8")
-    status = ua.lade_status(tmp_path / "x.json")
+    pfad.write_text(f"# Kopf\n\n{udoku.DOKU_START}\nalt\n{udoku.DOKU_ENDE}\n\n## Notizen\n- bleibt\n", encoding="utf-8")
+    status = plan.lade_status(tmp_path / "x.json")
     status["orte"]["Bielefeld"] = {"status": "fertig", "datum": "2026-10-01", "gefunden": 5, "neu": 2, "credits": 8}
-    ua.schreibe_doku(status, pfad, JETZT(), quellen={})
+    udoku.schreibe_doku(status, pfad, JETZT(), quellen={})
     text = pfad.read_text(encoding="utf-8")
     assert text.startswith("# Kopf") and "- bleibt" in text and "\nalt\n" not in text
     assert "| Dortmund | 0 | Bestand |" in text
     assert "| Bielefeld | fertig | 2026-10-01 | 5 | 2 | 8 |" in text
-    assert text.count(ua.DOKU_START) == 1
+    assert text.count(udoku.DOKU_START) == 1
 
 
 def test_doku_wird_neu_angelegt_wenn_es_sie_noch_nicht_gibt(tmp_path):
     pfad = tmp_path / "neu" / "U.md"
-    status = ua.lade_status(tmp_path / "x.json")
+    status = plan.lade_status(tmp_path / "x.json")
     status["orte"]["Kamen"] = {"status": "fertig", "neu": 3}
     status["orte"]["Hamm"] = {"status": "fertig", "neu": 1}
     status["orte"]["Lünen"] = {"status": "teilweise", "neu": 2}
-    ua.schreibe_doku(status, pfad, JETZT(), quellen={})
+    udoku.schreibe_doku(status, pfad, JETZT(), quellen={})
     text = pfad.read_text(encoding="utf-8")
-    assert text.startswith("# Umkreis-Ausbau\n\n" + ua.DOKU_START)
+    assert text.startswith("# Umkreis-Ausbau\n\n" + udoku.DOKU_START)
     assert "**Stand:** 2 Orte fertig, 6 neue Profile über Firecrawl." in text
 
 
@@ -256,19 +259,19 @@ def test_doku_mit_nur_einem_marker_wird_nicht_zerschnitten(tmp_path):
     """Fehlt der Endmarker (z. B. von Hand gelöscht), bleibt der alte Text
     komplett erhalten und der neue Bereich wird angehängt."""
     pfad = tmp_path / "U.md"
-    pfad.write_text(f"# Eigene Notizen\n{ua.DOKU_START}\nhalb\n", encoding="utf-8")
-    ua.schreibe_doku(ua.lade_status(tmp_path / "x.json"), pfad, JETZT(), quellen={})
+    pfad.write_text(f"# Eigene Notizen\n{udoku.DOKU_START}\nhalb\n", encoding="utf-8")
+    udoku.schreibe_doku(plan.lade_status(tmp_path / "x.json"), pfad, JETZT(), quellen={})
     text = pfad.read_text(encoding="utf-8")
-    assert text.startswith(f"# Eigene Notizen\n{ua.DOKU_START}\nhalb\n")
-    assert text.count(ua.DOKU_ENDE) == 1
+    assert text.startswith(f"# Eigene Notizen\n{udoku.DOKU_START}\nhalb\n")
+    assert text.count(udoku.DOKU_ENDE) == 1
 
 
 def test_echte_doku_datei_hat_auto_marker():
     # docs/ ist gitignored (nur lokal) -- in einem frischen Clone fehlt sie.
-    if not ua.DOKU_DATEI.exists():
+    if not udoku.DOKU_DATEI.exists():
         pytest.skip("docs/UMKREIS_AUSBAU.md nur lokal vorhanden")
-    text = ua.DOKU_DATEI.read_text(encoding="utf-8")
-    assert ua.DOKU_START in text and ua.DOKU_ENDE in text
+    text = udoku.DOKU_DATEI.read_text(encoding="utf-8")
+    assert udoku.DOKU_START in text and udoku.DOKU_ENDE in text
 
 
 # ---------- Profil-Auslese mit echtem (lokalem) Browser ----------
@@ -286,7 +289,7 @@ PROFIL_HTML = """<html><body>
 
 def test_profil_leser_liest_firecrawl_html_wie_scraper():
     async def lauf():
-        async with ua.ProfilLeser() as leser:
+        async with abruf.ProfilLeser() as leser:
             return await leser.lesen("https://www.therapie.de/profil/beispiel/", PROFIL_HTML)
     try:
         profil = asyncio.run(lauf())
@@ -301,7 +304,7 @@ def test_profil_leser_liest_firecrawl_html_wie_scraper():
 
 
 def test_profil_leser_ohne_profilblock_liefert_none():
-    leser = ua.ProfilLeser()
+    leser = abruf.ProfilLeser()
     assert asyncio.run(leser.lesen("u", "<html>Captcha</html>")) is None
 
 
@@ -353,7 +356,7 @@ def test_profil_leser_schaltet_javascript_aus_und_blockt_alle_anfragen(monkeypat
     monkeypatch.setitem(sys.modules, "playwright.async_api", fake)
 
     async def lauf():
-        async with ua.ProfilLeser():
+        async with abruf.ProfilLeser():
             pass
         route = _Route()
         await protokoll["handler"](route)
@@ -370,7 +373,7 @@ def test_profil_leser_schaltet_javascript_aus_und_blockt_alle_anfragen(monkeypat
 def test_profil_leser_nimmt_kartenlink_nicht_als_website():
     html = PROFIL_HTML.replace('<a href="mailto:', '<a href="https://www.google.com/maps/search/?api=1">Karte</a><a href="mailto:')
     async def lauf():
-        async with ua.ProfilLeser() as leser:
+        async with abruf.ProfilLeser() as leser:
             return await leser.lesen("https://www.therapie.de/profil/beispiel/", html)
     try:
         profil = asyncio.run(lauf())
@@ -382,21 +385,21 @@ def test_profil_leser_nimmt_kartenlink_nicht_als_website():
 # ---------- gemeinsamer Plan fuer die Zusatz-Scraper ----------
 
 def test_suchorte_ring0_ist_bestand_und_ring1_haengt_an():
-    assert ua.suchorte(0) == ["Dortmund", "Unna", "Bönen"]
-    ring1 = ua.suchorte(1)
+    assert plan.suchorte(0) == ["Dortmund", "Unna", "Bönen"]
+    ring1 = plan.suchorte(1)
     assert ring1[:3] == ["Dortmund", "Unna", "Bönen"] and "Kamen" in ring1 and "Bochum" not in ring1
 
 
 def test_bis_ring_aus_argv():
-    assert ua.bis_ring_aus_argv(["x.py"]) == 0
-    assert ua.bis_ring_aus_argv(["x.py", "--bis-ring", "2"]) == 2
+    assert plan.bis_ring_aus_argv(["x.py"]) == 0
+    assert plan.bis_ring_aus_argv(["x.py", "--bis-ring", "2"]) == 2
     with pytest.raises(SystemExit):
-        ua.bis_ring_aus_argv(["x.py", "--bis-ring"])
+        plan.bis_ring_aus_argv(["x.py", "--bis-ring"])
 
 
 def test_vermerke_quelle_erscheint_in_doku(tmp_path):
     doku = tmp_path / "U.md"
-    ua.vermerke_quelle("Kammer", 1, ["Menden"], status_pfad=tmp_path / "s.json", doku_pfad=doku,
+    udoku.vermerke_quelle("Kammer", 1, ["Menden"], status_pfad=tmp_path / "s.json", doku_pfad=doku,
                        jetzt=JETZT, quellen_pfad=tmp_path / "q.json")
     text = doku.read_text(encoding="utf-8")
     assert "| Kammer | 1 | 2026-09-30 | Menden |" in text
@@ -405,18 +408,61 @@ def test_vermerke_quelle_erscheint_in_doku(tmp_path):
 # ---------- mehrdeutige Ortsnamen (Befund 30.9.2026) ----------
 
 def test_mehrdeutiger_ort_nutzt_eindeutigen_suchbegriff():
-    assert "ort=59065" in ua.such_url("Hamm")
-    assert "ort=Menden%20%28Sauerland%29" in ua.such_url("Menden")
-    assert "ort=Kamen" in ua.such_url("Kamen")
+    assert "ort=59065" in abruf.such_url("Hamm")
+    assert "ort=Menden%20%28Sauerland%29" in abruf.such_url("Menden")
+    assert "ort=Kamen" in abruf.such_url("Kamen")
 
 
 def test_null_treffer_wird_nicht_als_fertig_abgehakt(tmp_path):
-    seiten = {ua.such_url("Hamm", 1): "<title>0 Therapeuten in und um | therapie.de</title>"}
+    seiten = {abruf.such_url("Hamm", 1): "<title>0 Therapeuten in und um | therapie.de</title>"}
     abrufe = []
     p = _pfade(tmp_path)
     status = asyncio.run(ua.lauf(["Hamm"], _holer(seiten, abrufe), leser_fabrik=FakeLeser,
                                  budget=10, jetzt=JETZT, **p))
     assert status["orte"]["Hamm"]["status"] == "kein_treffer"
     assert len(abrufe) == 1
-    assert "Hamm" not in ua.naechste_orte(status)  # erst nach Pruefung des Suchbegriffs erneut
+    assert "Hamm" not in plan.naechste_orte(status)  # erst nach Pruefung des Suchbegriffs erneut
     assert "0 Treffer, Suchbegriff prüfen" in p["doku_pfad"].read_text(encoding="utf-8")
+
+
+# ---------- Kommandozeile ----------
+
+def _main(tmp_path, argv, status=None):
+    status_pfad, doku_pfad = tmp_paths = (tmp_path / "status.json", tmp_path / "U.md")
+    if status is not None:
+        status_pfad.write_text(json.dumps(status), encoding="utf-8")
+    aufrufe = []
+    ua.main(argv, status_pfad=status_pfad, doku_pfad=doku_pfad,
+            starte_lauf=lambda orte, **k: aufrufe.append((orte, k)))
+    return aufrufe, tmp_paths
+
+
+def test_main_doku_schreibt_nur_die_uebersicht(tmp_path):
+    aufrufe, (_, doku_pfad) = _main(tmp_path, ["--doku"])
+    assert aufrufe == []
+    assert udoku.DOKU_START in doku_pfad.read_text(encoding="utf-8")
+
+
+def test_main_ohne_schalter_zeigt_nur_den_stand(tmp_path, capsys):
+    aufrufe, (_, doku_pfad) = _main(tmp_path, [])
+    assert aufrufe == [] and not doku_pfad.exists()
+    assert "Als Naechstes: Holzwickede" in capsys.readouterr().out
+
+
+def test_main_los_nimmt_die_naechsten_offenen_orte_mit_budget(tmp_path, monkeypatch):
+    monkeypatch.delenv("FIRECRAWL_MONATSLIMIT", raising=False)
+    aufrufe, _ = _main(tmp_path, ["--los", "--max-orte", "2", "--budget", "50"])
+    assert aufrufe == [(["Holzwickede", "Kamen"], {"budget": 50, "monatslimit": 1000})]
+
+
+def test_main_ort_nimmt_genau_diesen_ort(tmp_path):
+    aufrufe, _ = _main(tmp_path, ["--ort", "Paderborn"])
+    assert aufrufe[0][0] == ["Paderborn"]
+
+
+def test_main_alles_erledigt_startet_keinen_lauf(tmp_path, capsys):
+    fertig = {"orte": {o: {"status": "fertig"} for r in plan.UMKREIS_PLAN for o, _ in r["orte"]},
+              "credits_pro_monat": {}}
+    aufrufe, _ = _main(tmp_path, ["--los"], status=fertig)
+    assert aufrufe == []
+    assert "Alle Orte im Plan sind erledigt" in capsys.readouterr().out
