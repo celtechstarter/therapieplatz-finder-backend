@@ -117,6 +117,7 @@ therapie-mailer/
 ├── deliverables/               <- fertige Exporte (xlsx/pdf/Videos)
 │   └── flyer/                    <- Druck-PDFs; Bau-Skripte in flyer/quellen/
 ├── tests/                      <- pytest-Tests fürs Backend (siehe unten)
+├── tools/                      <- Werkzeuge für Entwickler (Mutationstest)
 │
 └── webapp/                     <- DAS DEPLOYTE PRODUKT (eigenes Git-Repo!)
     ├── app/                       <- Single-Page-App (app.js, index.html, ...)
@@ -188,6 +189,37 @@ Einzige Ausnahme beim Browser: je ein Test in `test_scraper.py` und
 `test_umkreis_ausbau.py` lädt ein Beispiel-Profil in einen lokalen Chromium
 (alle Netz-Anfragen blockiert) und wird übersprungen, wenn keiner
 installiert ist.
+
+### Wie gut sind die Tests?
+
+Abdeckung allein sagt nur, welche Zeilen beim Testen laufen. Darum gibt es
+zusätzlich einen **Mutationstest** (`tools/mutationstest.py`): Er baut in
+einer Kopie des Projekts absichtlich kleine Fehler ein (`==` statt `!=`,
+`and` statt `or`, `True` statt `False`, eine 1 statt einer 0 …) und prüft,
+ob die Tests das merken. Je höher der Anteil, desto weniger "tote" Tests.
+
+```bash
+python tools/mutationstest.py backend/filters.py tests/test_filters.py
+```
+
+Stand 16.10.2026 (je bis zu 30 zufällige Mutationen pro Modul):
+
+| Modul | erkannt | Modul | erkannt |
+|---|---|---|---|
+| analyse_regeln.py | 97 % | merge_hilfen.py | 100 % |
+| analyzer.py | 93 % | dateihilfen.py | 100 % |
+| filters.py | 90 % | umkreis_plan.py | 96 % |
+| dedupe_bestand.py | 90 % | build_plz_tabelle.py | 92 % |
+| browser_schutz.py | 90 % | analyse_ki.py | 88 % |
+| scraper.py | 88 % | umkreis_abruf.py | 88 % |
+| email_vorlagen.py | 88 % | umkreis_doku.py | 88 % |
+| main.py | 89 % | build_webapp_chunks.py | 87 % |
+| stats_export.py | 85 % | umkreis_ausbau.py | 84 % |
+| email_suche.py | 80 % | | |
+
+Die übrigen, nicht erkannten Mutationen habe ich einzeln angesehen: Meist
+ändern sie nichts am Verhalten (z. B. `if __name__ == "__main__"` oder
+eine Einstellung, die im Test keine Rolle spielt).
 
 Beides sollte vor jedem Commit grün sein – ein Teil der Tests entstand direkt
 aus echten, im Betrieb gefundenen Fehlern (siehe Docstrings/Commit-Messages

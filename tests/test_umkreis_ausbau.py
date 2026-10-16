@@ -466,3 +466,18 @@ def test_main_alles_erledigt_startet_keinen_lauf(tmp_path, capsys):
     aufrufe, _ = _main(tmp_path, ["--los"], status=fertig)
     assert aufrufe == []
     assert "Alle Orte im Plan sind erledigt" in capsys.readouterr().out
+
+
+def test_doku_stand_zaehlt_fertige_orte_und_neue_profile():
+    status = {"orte": {"Kamen": {"status": "fertig", "neu": 4}, "Unna": {"status": "fertig"},
+                       "Lünen": {"status": "teilweise", "neu": 2}},
+              "credits_pro_monat": {"2026-09": 30, "2026-10": 12}}
+    text = udoku.doku_tabelle(status, jetzt=JETZT(), quellen={})
+    assert "**Stand:** 2 Orte fertig, 6 neue Profile" in text
+    assert "Firecrawl-Credits: 2026-09: 30, 2026-10: 12_" in text
+
+
+def test_doku_legt_fehlende_ordner_an(tmp_path):
+    ziel = tmp_path / "neu" / "unter" / "U.md"
+    udoku.schreibe_doku({"orte": {}, "credits_pro_monat": {}}, ziel, jetzt=JETZT(), quellen={})
+    assert udoku.DOKU_START in ziel.read_text(encoding="utf-8")

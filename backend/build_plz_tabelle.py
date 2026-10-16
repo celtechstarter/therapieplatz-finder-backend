@@ -70,7 +70,12 @@ def main(pfad):
     print(f"{len(wl)} Postleitzahlen in Westfalen-Lippe -> {ZIEL_WL}")
 
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
+def kommandozeile(argv):
+    """`python build_plz_tabelle.py PFAD/ZU/DE.txt` (Datei von GeoNames)."""
+    if len(argv) != 1:
         raise SystemExit("Aufruf: python build_plz_tabelle.py PFAD/ZU/DE.txt")
-    main(sys.argv[1])
+    main(argv[0])
+
+
+if __name__ == "__main__":
+    kommandozeile(sys.argv[1:])
