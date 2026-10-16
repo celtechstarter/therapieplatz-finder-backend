@@ -1,0 +1,26 @@
+# Python-Abhaengigkeiten der Backend-Pipeline (backend/).
+#
+# Warum feste Versionen ("==" statt offener Angaben):
+# Der Scraper haengt an konkretem Verhalten von Playwright, der Analyzer an
+# der Antwortstruktur des anthropic-Clients (message.stop_reason,
+# message.content[0].text). Ein stilles Minor-Update kann beides brechen --
+# und zwar mitten in einem stundenlangen Lauf. Mit festen Versionen laeuft
+# auf einem neu aufgesetzten Rechner exakt das, was hier getestet wurde.
+#
+# Stand: 19.08.2026, geprueft gegen die im Projekt-venv installierten und
+# damit tatsaechlich erprobten Versionen.
+# Aktualisieren: `pip install -U <paket>`, danach IMMER
+# `python -m pytest tests/ -q` laufen lassen und die Version hier nachziehen.
+
+playwright==1.60.0
+anthropic==0.112.0
+google-auth-oauthlib==1.4.0
+google-auth-httplib2==0.4.0
+google-api-python-client==2.198.0
+requests==2.34.2
+python-dotenv==1.2.2
+
+# Testsuite (tests/) -- gehoert zur Entwicklungsumgebung, nicht zum Betrieb,
+# wird hier aber mitgefuehrt, damit ein `pip install -r requirements.txt`
+# reicht, um die Tests laufen lassen zu koennen.
+pytest==9.1.1

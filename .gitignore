@@ -1,0 +1,54 @@
+# Secrets -- duerfen niemals in ein Repository
+.env
+credentials.json
+token.json
+
+# Rohdaten und Nachweise: enthalten personenbezogene Daten (Namen, Adressen,
+# Telefonnummern, Emails von Therapeutinnen und Therapeuten)
+data/
+evidence/
+side-projects/*/data/
+side-projects/*/evidence/
+side-projects/*/token_*.json
+
+# Fertige Exporte: dieselben personenbezogenen Kontaktdaten, nur als
+# Tabelle/PDF -- gehoeren genauso wenig in ein Repository wie data/
+deliverables/
+/*.pdf
+/*.xlsx
+
+# Bewusst NICHT Teil dieses (oeffentlichen) Repos:
+# - webapp/ ist ein eigenes, separates Git-Repo mit eigenem .gitignore
+# - docs/ enthaelt u.a. Security-Audits mit Exploit-Details zu teils noch
+#   offenen Befunden -- gehoert nicht in ein oeffentliches Repository
+# - design/ und side-projects/ sind kein Teil des eigentlichen Produkts
+webapp/
+docs/
+design/
+side-projects/
+
+# Umgebung / Werkzeuge
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# .env.example ist bewusst NICHT ignoriert: reine Platzhalter-Vorlage,
+# siehe Kommentare dort.
+!.env.example
+
+# Lokale Claude/Cowork-Sitzungsdaten, kein Projektinhalt
+.claude/
+
+# Bewusst nicht Teil des oeffentlichen Repos: einzelne, quellen-spezifische
+# Scraper/Merge-Skripte fuer zusaetzliche Register/Verzeichnisse. Bleiben
+# lokal voll nutzbar, nur nicht veroeffentlicht (siehe README). Als Muster
+# statt Einzelnamen, damit auch die .gitignore keine Quellen auflistet.
+# Der allgemeine scraper.py und die gemeinsamen Hilfen bleiben im Repo.
+backend/scraper_*.py
+backend/merge_*.py
+!backend/merge_hilfen.py
+tests/test_scraper_*.py
+!tests/test_scraper_ablauf.py
+tests/test_merge_*.py
+!tests/test_merge_hilfen.py

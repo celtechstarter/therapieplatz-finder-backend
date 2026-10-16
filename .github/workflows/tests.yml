@@ -1,0 +1,22 @@
+# Backend-Tests (pytest) bei jedem Push und Pull Request.
+# Kein Test braucht einen echten Browser, echte API-Schluessel oder Netzwerk:
+# Playwright, Claude-API und Gmail werden in den Tests durch Attrappen ersetzt.
+name: Backend-Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Abhaengigkeiten installieren
+        run: pip install -r requirements.txt
+      - name: Tests ausfuehren
+        run: python -m pytest -q
